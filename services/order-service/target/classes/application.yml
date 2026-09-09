@@ -1,0 +1,8 @@
+server:
+  port: 8083
+services:
+  catalog-url: ${CATALOG_SERVICE_URL:http://localhost:8081}
+paypal:
+  base-url: ${PAYPAL_BASE_URL:https://api-m.sandbox.paypal.com}
+  client-id: ${PAYPAL_CLIENT_ID:}
+  client-secret: ${PAYPAL_CLIENT_SECRET:}
