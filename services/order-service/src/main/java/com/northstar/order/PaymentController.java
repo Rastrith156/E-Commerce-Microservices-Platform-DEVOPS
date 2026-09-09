@@ -17,6 +17,15 @@ public class PaymentController {
     this.service = service;
   }
 
+  @GetMapping("/status")
+  public Map<String, Object> status() {
+    return Map.of(
+        "gateway", "PayPal",
+        "liveConfigured", service.isLiveConfigured(),
+        "mode", service.isLiveConfigured() ? "live-sandbox" : "simulated-sandbox"
+    );
+  }
+
   @PostMapping("/orders")
   public Created create(@Valid @RequestBody Request request) {
     return service.create(request);
