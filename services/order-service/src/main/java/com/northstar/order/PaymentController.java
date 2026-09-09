@@ -1,1 +1,34 @@
-package com.northstar.order;import static com.northstar.order.CheckoutModels.*;import jakarta.validation.Valid;import org.springframework.http.*;import org.springframework.web.bind.annotation.*;@RestController @RequestMapping("/api/payments/paypal")@CrossOrigin(origins="${FRONTEND_URL:http://localhost:5173}")public class PaymentController{private final PayPalService service;public PaymentController(PayPalService s){service=s;}@PostMapping("/orders")public Created create(@Valid@RequestBody Request r){return service.create(r);}@PostMapping("/orders/{id}/capture")public Captured capture(@PathVariable String id){return service.capture(id);}@ExceptionHandler({IllegalArgumentException.class,IllegalStateException.class})ResponseEntity<?>bad(RuntimeException e){return ResponseEntity.badRequest().body(Map.of("message",e.getMessage()));}}
+package com.northstar.order;
+
+import static com.northstar.order.CheckoutModels.*;
+
+import jakarta.validation.Valid;
+import java.util.Map;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/payments/paypal")
+@CrossOrigin(origins = "${FRONTEND_URL:http://localhost:5173}")
+public class PaymentController {
+  private final PayPalService service;
+
+  public PaymentController(PayPalService service) {
+    this.service = service;
+  }
+
+  @PostMapping("/orders")
+  public Created create(@Valid @RequestBody Request request) {
+    return service.create(request);
+  }
+
+  @PostMapping("/orders/{id}/capture")
+  public Captured capture(@PathVariable String id) {
+    return service.capture(id);
+  }
+
+  @ExceptionHandler({IllegalArgumentException.class, IllegalStateException.class})
+  ResponseEntity<?> badRequest(RuntimeException error) {
+    return ResponseEntity.badRequest().body(Map.of("message", error.getMessage()));
+  }
+}
