@@ -109,7 +109,7 @@ pipeline {
                     set -eu
                     docker run --rm -v jenkins-agent-work:/agent -w "/agent/workspace/E-Commerce-DevSecOps-CI/frontend" node:24.15.0-alpine3.22 sh -ec 'npm ci --ignore-scripts=false'
                     for service in catalog-service cart-service order-service; do
-                      docker run --rm -v "$WORKSPACE:/workspace" -w "/workspace/services/$service" \
+                      docker run --rm -v jenkins-agent-work:/agent -w "/agent/workspace/E-Commerce-DevSecOps-CI/services/$service" \
                         maven:3.9.9-eclipse-temurin-21-alpine \
                         mvn -B -ntp -C dependency:go-offline
                     done
@@ -131,7 +131,7 @@ pipeline {
                 sh '''
                     set -eu
                     for service in catalog-service cart-service order-service; do
-                      docker run --rm -v "$WORKSPACE:/workspace" -w "/workspace/services/$service" \
+                      docker run --rm -v jenkins-agent-work:/agent -w "/agent/workspace/E-Commerce-DevSecOps-CI/services/$service" \
                         maven:3.9.9-eclipse-temurin-21-alpine \
                         mvn -B -ntp -C verify
                     done
