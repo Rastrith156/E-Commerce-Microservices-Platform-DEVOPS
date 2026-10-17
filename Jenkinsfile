@@ -63,11 +63,11 @@ pipeline {
                     docker run --rm -v "$WORKSPACE:/repo" -w /repo \
                       "zricethezav/gitleaks:${GITLEAKS_VERSION}" \
                       git --redact --exit-code 1 --report-format sarif \
-                      --report-path reports/gitleaks-history.sarif .
+                      --report-path /repo/reports/gitleaks-history.sarif .
                     docker run --rm -v "$WORKSPACE:/repo" -w /repo \
                       "zricethezav/gitleaks:${GITLEAKS_VERSION}" \
                       dir --redact --exit-code 1 --report-format sarif \
-                      --report-path reports/gitleaks-working-tree.sarif .
+                      --report-path /repo/reports/gitleaks-working-tree.sarif .
                 '''
             }
         }
