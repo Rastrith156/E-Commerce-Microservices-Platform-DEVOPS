@@ -60,6 +60,8 @@ pipeline {
             steps {
                 sh '''
                     set -eu
+                    mkdir -p "$WORKSPACE/reports"
+
                     docker run --rm -v "$WORKSPACE:/repo" -w /repo \
                       "zricethezav/gitleaks:${GITLEAKS_VERSION}" \
                       git --redact --exit-code 1 --report-format sarif \
