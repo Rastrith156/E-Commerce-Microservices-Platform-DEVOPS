@@ -107,7 +107,7 @@ pipeline {
             steps {
                 sh '''
                     set -eu
-                    docker run --rm -v jenkins-agent-work:/agent -w "/agent/workspace/E-Commerce-DevSecOps-CI/frontend" node:24.15.0-alpine3.22 sh -ec 'npm ci --ignore-scripts=false'
+                    docker run --rm -v jenkins-agent-work:/agent -w "/agent/workspace/E-Commerce-DevSecOps-CI/frontend" --user 1000:1000 node:24.15.0-alpine3.22 sh -ec 'npm ci --ignore-scripts=false'
                     for service in catalog-service cart-service order-service; do
                       docker run --rm -v jenkins-agent-work:/agent -w "/agent/workspace/E-Commerce-DevSecOps-CI/services/$service" \
                         maven:3.9.9-eclipse-temurin-21-alpine \
@@ -121,7 +121,7 @@ pipeline {
             steps {
                 sh '''
                     set -eu
-                    docker run --rm -v jenkins-agent-work:/agent -w "/agent/workspace/E-Commerce-DevSecOps-CI/frontend" node:24.15.0-alpine3.22 sh -ec 'npm run lint && npm run build'
+                    docker run --rm -v jenkins-agent-work:/agent -w "/agent/workspace/E-Commerce-DevSecOps-CI/frontend" --user 1000:1000 node:24.15.0-alpine3.22 sh -ec 'npm run lint && npm run build'
                 '''
             }
         }
