@@ -1,0 +1,390 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: catalog-service
+spec:
+  replicas: 3
+  revisionHistoryLimit: 3
+  progressDeadlineSeconds: 1800
+  selector:
+    matchLabels:
+      app: catalog-service
+  template:
+    metadata:
+      labels:
+        app: catalog-service
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: catalog-service
+          image: catalog-service:bootstrap
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8081
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 10
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 192Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+  strategy:
+    canary:
+      maxUnavailable: 0
+      maxSurge: 1
+      abortScaleDownDelaySeconds: 30
+      steps:
+        - setWeight: 5
+        - pause:
+            duration: 2m
+        - analysis:
+            templates:
+              - templateName: ecommerce-slo-check
+            args:
+              - name: application
+                value: catalog-service
+              - name: prometheus-address
+                value: http://PROMETHEUS_ENDPOINT_REQUIRED
+        - setWeight: 20
+        - pause:
+            duration: 2m
+        - analysis:
+            templates:
+              - templateName: ecommerce-slo-check
+            args:
+              - name: application
+                value: catalog-service
+              - name: prometheus-address
+                value: http://PROMETHEUS_ENDPOINT_REQUIRED
+        - setWeight: 50
+        - pause:
+            duration: 2m
+        - analysis:
+            templates:
+              - templateName: ecommerce-slo-check
+            args:
+              - name: application
+                value: catalog-service
+              - name: prometheus-address
+                value: http://PROMETHEUS_ENDPOINT_REQUIRED
+        - setWeight: 100
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: cart-service
+spec:
+  replicas: 3
+  revisionHistoryLimit: 3
+  progressDeadlineSeconds: 1800
+  selector:
+    matchLabels:
+      app: cart-service
+  template:
+    metadata:
+      labels:
+        app: cart-service
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: cart-service
+          image: cart-service:bootstrap
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8082
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 10
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 192Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+  strategy:
+    canary:
+      maxUnavailable: 0
+      maxSurge: 1
+      abortScaleDownDelaySeconds: 30
+      steps:
+        - setWeight: 5
+        - pause:
+            duration: 2m
+        - analysis:
+            templates:
+              - templateName: ecommerce-slo-check
+            args:
+              - name: application
+                value: cart-service
+              - name: prometheus-address
+                value: http://PROMETHEUS_ENDPOINT_REQUIRED
+        - setWeight: 20
+        - pause:
+            duration: 2m
+        - analysis:
+            templates:
+              - templateName: ecommerce-slo-check
+            args:
+              - name: application
+                value: cart-service
+              - name: prometheus-address
+                value: http://PROMETHEUS_ENDPOINT_REQUIRED
+        - setWeight: 50
+        - pause:
+            duration: 2m
+        - analysis:
+            templates:
+              - templateName: ecommerce-slo-check
+            args:
+              - name: application
+                value: cart-service
+              - name: prometheus-address
+                value: http://PROMETHEUS_ENDPOINT_REQUIRED
+        - setWeight: 100
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: order-service
+spec:
+  replicas: 3
+  revisionHistoryLimit: 3
+  progressDeadlineSeconds: 1800
+  selector:
+    matchLabels:
+      app: order-service
+  template:
+    metadata:
+      labels:
+        app: order-service
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: order-service
+          image: order-service:bootstrap
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8083
+          env:
+            - name: CATALOG_SERVICE_URL
+              value: http://catalog-service:8081
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 10
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 192Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+  strategy:
+    canary:
+      maxUnavailable: 0
+      maxSurge: 1
+      abortScaleDownDelaySeconds: 30
+      steps:
+        - setWeight: 5
+        - pause:
+            duration: 2m
+        - analysis:
+            templates:
+              - templateName: ecommerce-slo-check
+            args:
+              - name: application
+                value: order-service
+              - name: prometheus-address
+                value: http://PROMETHEUS_ENDPOINT_REQUIRED
+        - setWeight: 20
+        - pause:
+            duration: 2m
+        - analysis:
+            templates:
+              - templateName: ecommerce-slo-check
+            args:
+              - name: application
+                value: order-service
+              - name: prometheus-address
+                value: http://PROMETHEUS_ENDPOINT_REQUIRED
+        - setWeight: 50
+        - pause:
+            duration: 2m
+        - analysis:
+            templates:
+              - templateName: ecommerce-slo-check
+            args:
+              - name: application
+                value: order-service
+              - name: prometheus-address
+                value: http://PROMETHEUS_ENDPOINT_REQUIRED
+        - setWeight: 100
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: frontend
+          image: frontend:bootstrap
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 101
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 32Mi

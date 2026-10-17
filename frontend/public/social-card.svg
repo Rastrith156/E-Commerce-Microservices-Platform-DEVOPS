@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#f8f7f3"/>
+  <circle cx="1000" cy="112" r="250" fill="#e7e4db"/>
+  <circle cx="1000" cy="112" r="178" fill="#1f4d3c"/>
+  <path d="m1000 10 26 76 80 4-63 49 22 79-65-44-65 44 22-79-63-49 80-4z" fill="#f8f7f3"/>
+  <circle cx="1000" cy="139" r="23" fill="#a74721"/>
+  <text x="90" y="150" fill="#1f4d3c" font-family="Arial,Helvetica,sans-serif" font-size="31" font-weight="700" letter-spacing="9">NORTHSTAR</text>
+  <circle cx="372" cy="137" r="7" fill="#a74721"/>
+  <text x="90" y="310" fill="#23231f" font-family="Georgia,serif" font-size="76">Modern essentials.</text>
+  <text x="90" y="405" fill="#a74721" font-family="Georgia,serif" font-size="76">Thoughtfully chosen.</text>
+  <text x="94" y="500" fill="#59584f" font-family="Arial,Helvetica,sans-serif" font-size="26">Useful forms for home, work, and everyday living.</text>
+</svg>

@@ -1,10 +1,13 @@
-# Node/JavaScript dependencies and outputs
+# Node / JavaScript
 node_modules/
 dist/
 build/
 coverage/
 
-# Local environment files (keep documented examples)
+# Java / Maven
+**/target/
+
+# Environment files
 .env
 .env.*
 !.env.example
@@ -15,8 +18,14 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+.scannerwork/
+reports/
+.docker-config/
+.git-askpass
+/tmp/
+/gitops-promotion*/
 
-# Editors and operating systems
+# IDE / OS
 .vscode/
 .idea/
 .DS_Store

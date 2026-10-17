@@ -1,0 +1,51 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: ecommerce-slo-check
+spec:
+  args:
+    - name: application
+    - name: prometheus-address
+  metrics:
+    - name: request-availability
+      interval: 1m
+      count: 3
+      failureLimit: 1
+      successCondition: result[0] >= 0.99
+      failureCondition: result[0] < 0.99
+      provider:
+        prometheus:
+          address: "{{args.prometheus-address}}"
+          query: |
+            sum(rate(http_server_requests_seconds_count{application="{{args.application}}",status!~"5.."}[5m]))
+            /
+            sum(rate(http_server_requests_seconds_count{application="{{args.application}}"}[5m]))
+    - name: five-hundred-error-ratio
+      interval: 1m
+      count: 3
+      failureLimit: 1
+      successCondition: result[0] < 0.01
+      failureCondition: result[0] >= 0.01
+      provider:
+        prometheus:
+          address: "{{args.prometheus-address}}"
+          query: |
+            sum(rate(http_server_requests_seconds_count{application="{{args.application}}",status=~"5.."}[5m]))
+            /
+            sum(rate(http_server_requests_seconds_count{application="{{args.application}}"}[5m]))
+    - name: p95-http-latency
+      interval: 1m
+      count: 3
+      failureLimit: 1
+      successCondition: result[0] < 0.5
+      failureCondition: result[0] >= 0.5
+      provider:
+        prometheus:
+          address: "{{args.prometheus-address}}"
+          query: |
+            histogram_quantile(
+              0.95,
+              sum by (le) (
+                rate(http_server_requests_seconds_bucket{application="{{args.application}}"}[5m])
+              )
+            )
