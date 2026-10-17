@@ -1,4 +1,4 @@
-pipeline {
+﻿pipeline {
     agent { label 'linux-docker' }
 
     options {
@@ -30,7 +30,7 @@ pipeline {
                       echo "A full clone is required for the Gitleaks history scan" >&2
                       exit 1
                     }
-                    branch="${CHANGE_BRANCH:-${BRANCH_NAME:-}}"
+                    branch="${CHANGE_BRANCH:-${BRANCH_NAME:-$(git symbolic-ref --quiet --short HEAD || git branch -r --contains HEAD | sed -n 's#^[[:space:]]*origin/##p' | head -n 1)}}"
                     test -n "$branch" || { echo "Unable to determine the checked-out branch" >&2; exit 1; }
                     {
                       printf 'commit=%s\n' "$(git rev-parse HEAD)"
