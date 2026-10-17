@@ -102,7 +102,8 @@ pipeline {
             test -s "$WORKSPACE/reports/gitleaks-working-tree.sarif"
         '''
     }
-}stage('Install reproducible dependencies') {
+}
+        stage('Install reproducible dependencies') {
             steps {
                 sh '''
                     set -eu
