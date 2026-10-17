@@ -10,8 +10,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpStatus;
 
 @SpringBootTest(
-    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-    properties = "management.prometheus.metrics.export.enabled=true")
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class CatalogSmokeTest {
   @LocalServerPort private int port;
 

@@ -4,6 +4,10 @@ spring:
   application:
     name: catalog-service
 management:
+  prometheus:
+    metrics:
+      export:
+        enabled: true
   endpoints:
     web:
       exposure:
