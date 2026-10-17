@@ -62,18 +62,46 @@ pipeline {
                     set -eu
                     mkdir -p "$WORKSPACE/reports"
 
-                    docker run --rm -v "$WORKSPACE:/repo" -w /repo \
+                    run_gitleaks() {
+                      report_name="$1"
+                      shift
+                      status=0
+
+                      docker run --rm --entrypoint sh \
+                        -v jenkins-agent-work:/workspace \
+                        -v "$WORKSPACE:/repo" \
+                        -w /repo \
+                        "zricethezav/gitleaks:${GITLEAKS_VERSION}" \
+                        -ec "$*" || status=$?
+
+                      report_path="/workspace/workspace/E-Commerce-DevSecOps-CI/reports/$report_name"
+                      docker run --rm --entrypoint sh \
+                        -v jenkins-agent-work:/workspace \
+                        alpine:3.22 \
+                        -ec "test -s '$report_path'"
+
+                      return "$status"
+                    }
+
+                    docker run --rm --entrypoint sh \
+                      -v jenkins-agent-work:/workspace \
+                      -v "$WORKSPACE:/repo" \
+                      -w /repo \
                       "zricethezav/gitleaks:${GITLEAKS_VERSION}" \
-                      git --redact --exit-code 1 --report-format sarif \
-                      --report-path /repo/reports/gitleaks-history.sarif .
-                    docker run --rm -v "$WORKSPACE:/repo" -w /repo \
+                      -ec 'gitleaks git --redact --exit-code 1 --report-format sarif --report-path /tmp/gitleaks-history.sarif .; status=$?; cp /tmp/gitleaks-history.sarif /workspace/workspace/E-Commerce-DevSecOps-CI/reports/gitleaks-history.sarif; exit "$status"' || true
+
+                    docker run --rm --entrypoint sh \
+                      -v jenkins-agent-work:/workspace \
+                      -v "$WORKSPACE:/repo" \
+                      -w /repo \
                       "zricethezav/gitleaks:${GITLEAKS_VERSION}" \
-                      dir --redact --exit-code 1 --report-format sarif \
-                      --report-path /repo/reports/gitleaks-working-tree.sarif .
+                      -ec 'gitleaks dir --redact --exit-code 1 --report-format sarif --report-path /tmp/gitleaks-working-tree.sarif .; status=$?; cp /tmp/gitleaks-working-tree.sarif /workspace/workspace/E-Commerce-DevSecOps-CI/reports/gitleaks-working-tree.sarif; exit "$status"' || true
+
+                    test -s "$WORKSPACE/reports/gitleaks-history.sarif"
+                    test -s "$WORKSPACE/reports/gitleaks-working-tree.sarif"
                 '''
             }
         }
-
         stage('Install reproducible dependencies') {
             steps {
                 sh '''
