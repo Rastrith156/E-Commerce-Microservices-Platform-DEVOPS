@@ -17,7 +17,7 @@ const escapeXml = value => value
 
 function renderRouteHtml(source, metadata, siteUrl, socialImageUrl) {
   const canonicalUrl = siteUrl ? new URL(metadata.path, `${siteUrl}/`).href : '';
-  const imageUrl = socialImageUrl || (siteUrl ? `${siteUrl}/social-card.png` : '');
+  const imageUrl = socialImageUrl || (siteUrl ? `${siteUrl}/social-card.svg` : '');
   const canonical = canonicalUrl
     ? `<link rel="canonical" href="${escapeHtml(canonicalUrl)}">`
     : '';

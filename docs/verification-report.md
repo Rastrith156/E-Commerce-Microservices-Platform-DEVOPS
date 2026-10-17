@@ -8,13 +8,15 @@ The following checks ran successfully in the current local environment:
 
 - `docker compose -f compose.yaml config --quiet` — passed.
 - `docker compose -f compose.yaml build` — passed for all four application images.
-- Gitleaks v8.24.2 Git-history scan — passed (7 commits scanned; no leaks found).
+- Gitleaks v8.24.2 Git-history scan — passed (9 commits scanned; no leaks found).
 - Gitleaks v8.24.2 working-tree scan — passed (no leaks found).
 - `npm run lint` in the frontend — passed.
 - `npm test` in the frontend — passed (11 tests).
 - `npm run build` in the frontend — passed.
-- `npm ci --dry-run --ignore-scripts` in the frontend — passed.
+- `npm ci` and `npm audit` in the frontend — passed after upgrading Vitest to 5.0.5 (0 vulnerabilities).
 - `mvn -B -ntp -C verify` in the pinned Maven build image for catalog, cart, and order — passed (2 tests per service).
+- Full Compose runtime smoke checks — frontend, same-origin catalog API, catalog health/metrics, cart, and order status returned HTTP 200; Nginx served the favicon/social image and public pages, while unknown routes, assets, and API paths returned HTTP 404.
+- The built Nginx image returned the custom 404 document with HTTP 404. `/sitemap.xml` correctly returns 404 while `VITE_SITE_URL` is unset; no production domain is fabricated.
 - Isolated Docker Compose runtime smoke checks for the frontend, same-origin API, catalog, cart, order status, and catalog Prometheus endpoint — passed.
 - The catalog runtime image returned HTTP 200 from `/actuator/prometheus`, with `http_server_requests_seconds` present.
 - `kubectl kustomize` for the GitOps app base, Argo CD app definitions, Kyverno policies, and all three environment overlays — passed.
@@ -38,13 +40,14 @@ The following checks did not pass and remain blocked by missing external depende
 - Real Argo CD and Argo Rollouts deployment reconciliation — not run; no cluster existed.
 - Real production/dev/staging smoke checks against cluster services — not run; no Kubernetes cluster or live ingress/traffic was available.
 - Real registry digest push/sign/publish flow — not run; no Artifact Registry, registry credentials, or repository existed.
-- During the Docker image build, `npm ci` reported 3 dependency vulnerabilities (1 moderate and 2 critical). Package-level findings and the CI severity-gate outcome remain unverified because Trivy could not obtain its vulnerability database.
+- Production canonical metadata and `/sitemap.xml` are intentionally omitted because `VITE_SITE_URL` is unset; configure the real root HTTPS domain before publishing the site.
+- Trivy remains unverified because its vulnerability database could not be downloaded in this environment; this is separate from the passing npm audit.
 
 ## Specific application validation status
 
-The local application stack was exercised with freshly built Docker images, but not against a cluster, registry, or production ingress. All three backend Maven verification runs passed (2 tests per service). An isolated Compose smoke run returned HTTP 200 for the storefront, same-origin catalog API, catalog, cart, order payment-status endpoint, and catalog `/actuator/prometheus`; the Prometheus response contained `http_server_requests_seconds`.
+The local application stack was exercised with freshly built Docker images, but not against a cluster, registry, or production ingress. All three backend Maven verification runs passed (2 tests per service). The Compose smoke run returned HTTP 200 for the storefront, same-origin catalog API, catalog health/Prometheus, cart, and order payment-status endpoint. Nginx served public assets and pages; unknown routes, assets, and API paths returned HTTP 404. The social metadata fallback now references the actual `social-card.svg` asset. Sitemap generation requires the real root HTTPS `VITE_SITE_URL`; it is deliberately omitted until configured.
 
-The original Maven smoke-test 404 was caused by Spring Boot's test context disabling metrics exporters by default (`management.defaults.metrics.export.enabled=false`), which prevented registration of the Prometheus endpoint in tests. The smoke tests now explicitly enable only `management.prometheus.metrics.export.enabled=true`. The app's `spring-boot-starter-actuator`, `micrometer-registry-prometheus`, and `management.endpoints.web.exposure.include` configuration were also checked against the rebuilt runtime image, which serves the scrape endpoint successfully. Jenkins' composed-application smoke gate now checks the catalog Prometheus endpoint as well.
+The original Maven smoke-test 404 was caused by the Prometheus metrics exporter being disabled unless explicitly enabled; the test had been using a test-only override that did not guarantee the runtime exporter was enabled. The catalog now sets `management.prometheus.metrics.export.enabled=true` in its application configuration, and the smoke test uses that same configuration. The service includes `spring-boot-starter-actuator` and the Spring Boot-managed `micrometer-registry-prometheus` dependency, exposes only `health,prometheus`, and serves Prometheus metrics from the rebuilt runtime image. Jenkins' composed-application smoke gate checks the catalog Prometheus endpoint as well. The production social-image metadata now defaults to the existing `social-card.svg` asset rather than a nonexistent PNG.
 
 ## Untested components
 

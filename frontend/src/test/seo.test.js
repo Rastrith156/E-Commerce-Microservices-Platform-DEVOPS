@@ -28,6 +28,8 @@ describe('static SEO document generation', () => {
     expect(shop).toContain('href="https://store.example.invalid/shop/"');
     expect(privacy).toContain('<title>Privacy Policy &amp; Store Data Practices | Northstar</title>');
     expect(privacy).toContain('href="https://store.example.invalid/privacy/"');
+    expect(shop).toContain('property="og:image" content="https://store.example.invalid/social-card.svg"');
+    expect(shop).toContain('name="twitter:image" content="https://store.example.invalid/social-card.svg"');
     expect(sitemap).toContain('<loc>https://store.example.invalid/</loc>');
     expect(sitemap).toContain('<loc>https://store.example.invalid/shop/</loc>');
     expect(sitemap).toContain('<loc>https://store.example.invalid/privacy/</loc>');
