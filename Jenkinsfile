@@ -57,52 +57,52 @@ pipeline {
         }
 
         stage('Secret detection') {
-            steps {
-                sh '''
-                    set -eu
-                    mkdir -p "$WORKSPACE/reports"
+    steps {
+        sh '''
+            set -eu
+            mkdir -p "$WORKSPACE/reports"
 
-                    run_gitleaks() {
-                      report_name="$1"
-                      shift
-                      status=0
+            docker run --rm --entrypoint sh \
+              -v jenkins-agent-work:/workspace \
+              -w /workspace/workspace/E-Commerce-DevSecOps-CI \
+              "zricethezav/gitleaks:${GITLEAKS_VERSION}" \
+              -ec '
+                set +e
+                gitleaks git --redact --exit-code 1 \
+                  --report-format sarif \
+                  --report-path /tmp/gitleaks-history.sarif .
+                status=$?
+                if [ ! -s /tmp/gitleaks-history.sarif ]; then
+                  echo "ERROR: Gitleaks history report was not created"
+                  exit 2
+                fi
+                cp /tmp/gitleaks-history.sarif reports/gitleaks-history.sarif
+                exit "$status"
+              '
 
-                      docker run --rm --entrypoint sh \
-                        -v jenkins-agent-work:/workspace \
-                        -v "$WORKSPACE:/repo" \
-                        -w /repo \
-                        "zricethezav/gitleaks:${GITLEAKS_VERSION}" \
-                        -ec "$*" || status=$?
+            docker run --rm --entrypoint sh \
+              -v jenkins-agent-work:/workspace \
+              -w /workspace/workspace/E-Commerce-DevSecOps-CI \
+              "zricethezav/gitleaks:${GITLEAKS_VERSION}" \
+              -ec '
+                set +e
+                gitleaks dir --redact --exit-code 1 \
+                  --report-format sarif \
+                  --report-path /tmp/gitleaks-working-tree.sarif .
+                status=$?
+                if [ ! -s /tmp/gitleaks-working-tree.sarif ]; then
+                  echo "ERROR: Gitleaks working-tree report was not created"
+                  exit 2
+                fi
+                cp /tmp/gitleaks-working-tree.sarif reports/gitleaks-working-tree.sarif
+                exit "$status"
+              '
 
-                      report_path="/workspace/workspace/E-Commerce-DevSecOps-CI/reports/$report_name"
-                      docker run --rm --entrypoint sh \
-                        -v jenkins-agent-work:/workspace \
-                        alpine:3.22 \
-                        -ec "test -s '$report_path'"
-
-                      return "$status"
-                    }
-
-                    docker run --rm --entrypoint sh \
-                      -v jenkins-agent-work:/workspace \
-                      -v "$WORKSPACE:/repo" \
-                      -w /repo \
-                      "zricethezav/gitleaks:${GITLEAKS_VERSION}" \
-                      -ec 'gitleaks git --redact --exit-code 1 --report-format sarif --report-path /tmp/gitleaks-history.sarif .; status=$?; cp /tmp/gitleaks-history.sarif /workspace/workspace/E-Commerce-DevSecOps-CI/reports/gitleaks-history.sarif; exit "$status"' || true
-
-                    docker run --rm --entrypoint sh \
-                      -v jenkins-agent-work:/workspace \
-                      -v "$WORKSPACE:/repo" \
-                      -w /repo \
-                      "zricethezav/gitleaks:${GITLEAKS_VERSION}" \
-                      -ec 'gitleaks dir --redact --exit-code 1 --report-format sarif --report-path /tmp/gitleaks-working-tree.sarif .; status=$?; cp /tmp/gitleaks-working-tree.sarif /workspace/workspace/E-Commerce-DevSecOps-CI/reports/gitleaks-working-tree.sarif; exit "$status"' || true
-
-                    test -s "$WORKSPACE/reports/gitleaks-history.sarif"
-                    test -s "$WORKSPACE/reports/gitleaks-working-tree.sarif"
-                '''
-            }
-        }
-        stage('Install reproducible dependencies') {
+            test -s "$WORKSPACE/reports/gitleaks-history.sarif"
+            test -s "$WORKSPACE/reports/gitleaks-working-tree.sarif"
+        '''
+    }
+}stage('Install reproducible dependencies') {
             steps {
                 sh '''
                     set -eu
