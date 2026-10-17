@@ -1,0 +1,5 @@
+images:
+  - group: argoproj.io
+    version: v1alpha1
+    kind: Rollout
+    path: spec/template/spec/containers/image

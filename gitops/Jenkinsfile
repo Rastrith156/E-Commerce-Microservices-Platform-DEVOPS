@@ -1,0 +1,199 @@
+pipeline {
+    agent { label 'linux-docker' }
+
+    environment {
+        DOCKER_CONFIG = "${WORKSPACE}/.docker-config"
+    }
+
+    parameters {
+        string(name: 'STAGING_BASE_URL', defaultValue: '',
+               description: 'HTTPS staging storefront URL; required when staging manifests change')
+        string(name: 'PRODUCTION_BASE_URL', defaultValue: '',
+               description: 'HTTPS production storefront URL; required when production manifests change')
+    }
+
+    options {
+        skipDefaultCheckout(true)
+        timestamps()
+        disableConcurrentBuilds()
+        timeout(time: 15, unit: 'MINUTES')
+    }
+
+    stages {
+        stage('Checkout GitOps PR') {
+            steps {
+                deleteDir()
+                checkout scm
+                sh '''
+                    set -eu
+                    test -n "${CHANGE_ID:-}" || test "${BRANCH_NAME:-}" = main
+                    if [ -n "${CHANGE_ID:-}" ]; then
+                      git fetch --no-tags origin \
+                        "+refs/heads/${CHANGE_TARGET}:refs/remotes/origin/${CHANGE_TARGET}"
+                    fi
+                '''
+            }
+        }
+        stage('Render every environment') {
+            steps {
+                sh '''
+                    set -eu
+                    mkdir -p reports
+                    for environment in dev staging prod; do
+                      kubectl kustomize "environments/${environment}" \
+                        > "reports/${environment}.yaml"
+                      grep -Eq "namespace: ecommerce-${environment}" "reports/${environment}.yaml"
+                      image_count="$(grep -Ec '^[[:space:]]*(-[[:space:]]*)?image:' "reports/${environment}.yaml")"
+                      test "$image_count" -eq 4 || {
+                        echo "Expected four application images in ${environment}, found ${image_count}" >&2
+                        exit 1
+                      }
+                      if grep -E '^[[:space:]]*(-[[:space:]]*)?image:' "reports/${environment}.yaml" \
+                        | grep -Ev '@sha256:[a-f0-9]{64}$'; then
+                        echo "Image reference is not pinned to a sha256 digest in ${environment}" >&2
+                        exit 1
+                      fi
+                    done
+                '''
+            }
+        }
+        stage('Require same-digest environment promotion') {
+            when { changeRequest() }
+            steps {
+                sh '''
+                    set -eu
+                    base="origin/${CHANGE_TARGET}"
+                    if git diff -U0 "$base...HEAD" -- environments/staging/kustomization.yaml \
+                      | grep -Eq '^[+-][[:space:]]+(newName|digest):'; then
+                      kubectl kustomize environments/dev \
+                        | awk '$1 == "image:" { print $2; next } $2 == "image:" { print $3 }' \
+                        | sort > reports/dev-images.txt
+                      kubectl kustomize environments/staging \
+                        | awk '$1 == "image:" { print $2; next } $2 == "image:" { print $3 }' \
+                        | sort > reports/staging-images.txt
+                      diff -u reports/dev-images.txt reports/staging-images.txt
+                    fi
+                    if git diff -U0 "$base...HEAD" -- environments/prod/kustomization.yaml \
+                      | grep -Eq '^[+-][[:space:]]+(newName|digest):'; then
+                      kubectl kustomize environments/staging \
+                        | awk '$1 == "image:" { print $2; next } $2 == "image:" { print $3 }' \
+                        | sort > reports/staging-images.txt
+                      kubectl kustomize environments/prod \
+                        | awk '$1 == "image:" { print $2; next } $2 == "image:" { print $3 }' \
+                        | sort > reports/prod-images.txt
+                      diff -u reports/staging-images.txt reports/prod-images.txt
+                    fi
+                '''
+            }
+        }
+        stage('Verify signatures for changed environment') {
+            when {
+                allOf {
+                    changeRequest()
+                    anyOf {
+                        changeset 'environments/dev/kustomization.yaml'
+                        changeset 'environments/staging/kustomization.yaml'
+                        changeset 'environments/prod/kustomization.yaml'
+                    }
+                }
+            }
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'artifact-registry-reader',
+                                  usernameVariable: 'REGISTRY_USERNAME',
+                                  passwordVariable: 'REGISTRY_PASSWORD')]) {
+                    sh '''
+                        set +x
+                        set -eu
+                        test -n "${IMAGE_REGISTRY:-}" || {
+                          echo "IMAGE_REGISTRY must be configured for signature verification" >&2; exit 1;
+                        }
+                        test -n "${COSIGN_CERTIFICATE_IDENTITY:-}" || {
+                          echo "COSIGN_CERTIFICATE_IDENTITY must be configured" >&2; exit 1;
+                        }
+                        test -n "${COSIGN_OIDC_ISSUER:-}" || {
+                          echo "COSIGN_OIDC_ISSUER must be configured" >&2; exit 1;
+                        }
+                        mkdir -p "$DOCKER_CONFIG" reports
+                        printf '%s' "$REGISTRY_PASSWORD" |
+                          docker login "${IMAGE_REGISTRY%%/*}" \
+                            --username "$REGISTRY_USERNAME" --password-stdin
+                        base="origin/${CHANGE_TARGET:-main}"
+                        for environment in dev staging prod; do
+                          if git diff --quiet "$base...HEAD" -- \
+                            "environments/${environment}/kustomization.yaml"; then
+                            continue
+                          fi
+                          kubectl kustomize "environments/${environment}" \
+                            > "reports/${environment}-signature-input.yaml"
+                          awk '$1 == "image:" { print $2; next } $2 == "image:" { print $3 }' \
+                            "reports/${environment}-signature-input.yaml" \
+                            > "reports/${environment}-images.txt"
+                          test -s "reports/${environment}-images.txt"
+                          while IFS= read -r image; do
+                            service="${image%@*}"
+                            service="${service##*/}"
+                            cosign verify \
+                              --certificate-identity "$COSIGN_CERTIFICATE_IDENTITY" \
+                              --certificate-oidc-issuer "$COSIGN_OIDC_ISSUER" \
+                              "$image" > "reports/cosign-${environment}-${service}.json"
+                          done < "reports/${environment}-images.txt"
+                        done
+                        docker logout "${IMAGE_REGISTRY%%/*}"
+                        rm -rf "$DOCKER_CONFIG"
+                    '''
+                }
+            }
+        }
+        stage('Test Kyverno policies') {
+            steps {
+                sh '''
+                    set -eu
+                    docker run --rm \
+                      -v "$WORKSPACE:/workspace" -w /workspace \
+                      ghcr.io/kyverno/kyverno-cli:v1.14.0 \
+                      test policies/tests
+                '''
+            }
+        }
+        stage('Staging integration after sync') {
+            when {
+                anyOf {
+                    changeset 'apps/base/**'
+                    changeset 'environments/staging/**'
+                    changeset 'environments/prod/**'
+                }
+            }
+            steps {
+                sh 'sh scripts/verify-staging.sh'
+            }
+        }
+        stage('Production verification before promotion') {
+            when {
+                anyOf {
+                    changeset 'apps/base/**'
+                    changeset 'environments/prod/**'
+                }
+            }
+            steps {
+                sh 'sh scripts/verify-production.sh'
+            }
+        }
+    }
+
+    post {
+        always {
+            sh '''
+                set -eu
+                if [ -d "$DOCKER_CONFIG" ]; then
+                  logout_status=0
+                  if [ -n "${IMAGE_REGISTRY:-}" ]; then
+                    docker logout "${IMAGE_REGISTRY%%/*}" || logout_status=$?
+                  fi
+                  rm -rf "$DOCKER_CONFIG"
+                  test "$logout_status" -eq 0
+                fi
+            '''
+            archiveArtifacts artifacts: 'reports/**', allowEmptyArchive: true, fingerprint: true
+        }
+    }
+}

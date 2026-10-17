@@ -1,0 +1,32 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: ecommerce-image-signature
+spec:
+  validationFailureAction: Audit
+  background: false
+  failurePolicy: Fail
+  webhookTimeoutSeconds: 30
+  rules:
+    - name: verify-cosign-keyless-identity
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - ecommerce-dev
+                - ecommerce-staging
+                - ecommerce-prod
+      verifyImages:
+        - imageReferences:
+            - us-central1-docker.pkg.dev/PROJECT_ID/ecommerce/*
+          required: true
+          verifyDigest: true
+          mutateDigest: false
+          attestors:
+            - count: 1
+              entries:
+                - keyless:
+                    subject: https://jenkins.example.invalid/job/ecommerce/main
+                    issuer: https://YOUR_CONFIGURED_OIDC_ISSUER

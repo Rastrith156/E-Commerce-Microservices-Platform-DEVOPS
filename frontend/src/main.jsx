@@ -1,1 +1,10 @@
-import React from'react';import{createRoot}from'react-dom/client';import{PayPalScriptProvider}from'@paypal/react-paypal-js';import App from'./App';import'./styles.css';createRoot(document.getElementById('root')).render(<React.StrictMode><PayPalScriptProvider options={{clientId:import.meta.env.VITE_PAYPAL_CLIENT_ID||'test',currency:'USD',intent:'capture'}}><App/></PayPalScriptProvider></React.StrictMode>);
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import App from './App';
+import './styles.css';
+
+createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>,
+);

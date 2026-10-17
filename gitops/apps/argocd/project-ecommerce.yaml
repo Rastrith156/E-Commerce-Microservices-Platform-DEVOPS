@@ -1,0 +1,32 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: ecommerce
+  namespace: argocd
+spec:
+  description: Restricted deployment project for the e-commerce environments
+  sourceRepos:
+    - https://github.com/ORG/ecommerce-gitops.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: ecommerce-dev
+    - server: https://kubernetes.default.svc
+      namespace: ecommerce-staging
+    - server: https://kubernetes.default.svc
+      namespace: ecommerce-prod
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+  namespaceResourceWhitelist:
+    - group: ""
+      kind: Service
+    - group: ""
+      kind: Pod
+    - group: apps
+      kind: Deployment
+    - group: argoproj.io
+      kind: Rollout
+    - group: argoproj.io
+      kind: AnalysisTemplate
+  orphanedResources:
+    warn: true

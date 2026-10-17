@@ -1,13 +1,14 @@
-# PayPal Sandbox Integration
+# PayPal status and safety
 
-The React client uses only the public sandbox client ID. The Order Service keeps the PayPal secret server-side, recalculates totals from authoritative Catalog Service prices, creates orders, and captures buyer-approved payments.
+The supported local and CI mode is a **sandbox simulation**. The Order Service
+status endpoint reports `simulated-sandbox` when credentials are absent, and
+the CI test asserts that behavior. Compose intentionally does not forward
+PayPal client credentials, and the Kubernetes workload does not reference a
+payment Secret.
 
-## Configuration
-
-```bash
-cp frontend/.env.example frontend/.env
-export PAYPAL_CLIENT_ID=your_sandbox_client_id
-export PAYPAL_CLIENT_SECRET=your_sandbox_secret
-```
-
-Never commit `.env` or credentials. This sandbox implementation requires persistent orders, authentication, webhook signature verification, inventory reservation, fraud controls, and observability before production use.
+The current source contains optional PayPal **sandbox** API code paths when
+credentials are explicitly supplied. Those paths are not live payment
+processing and are not enabled by this CI/GitOps scaffold. Do not add payment
+credentials to CI, Compose, manifests, logs, or Git. A production payment
+integration would require a separate security, compliance, reliability, and
+business approval effort; this platform does not configure one.

@@ -1,0 +1,98 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: ecommerce-workload-security
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: approved-registry-and-immutable-digest
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - ecommerce-dev
+                - ecommerce-staging
+                - ecommerce-prod
+      validate:
+        message: Application images must use the approved Artifact Registry and a sha256 digest.
+        foreach:
+          - list: request.object.spec.containers
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.image }}"
+                    operator: NotMatches
+                    value: "^us-central1-docker\\.pkg\\.dev/PROJECT_ID/ecommerce/[^@]+@sha256:[a-f0-9]{64}$"
+          - list: request.object.spec.initContainers || `[]`
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.image }}"
+                    operator: NotMatches
+                    value: "^us-central1-docker\\.pkg\\.dev/PROJECT_ID/ecommerce/[^@]+@sha256:[a-f0-9]{64}$"
+    - name: restricted-container-security
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - ecommerce-dev
+                - ecommerce-staging
+                - ecommerce-prod
+      validate:
+        message: Containers must be non-root, drop capabilities, disallow privilege escalation, use a read-only root filesystem, and set CPU and memory requests and limits.
+        foreach:
+          - list: request.object.spec.containers
+            pattern:
+              securityContext:
+                runAsNonRoot: true
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              resources:
+                requests:
+                  cpu: "?*"
+                  memory: "?*"
+                limits:
+                  cpu: "?*"
+                  memory: "?*"
+          - list: request.object.spec.initContainers || `[]`
+            pattern:
+              securityContext:
+                runAsNonRoot: true
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              resources:
+                requests:
+                  cpu: "?*"
+                  memory: "?*"
+                limits:
+                  cpu: "?*"
+                  memory: "?*"
+    - name: restricted-pod-security-context
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - ecommerce-dev
+                - ecommerce-staging
+                - ecommerce-prod
+      validate:
+        message: Pods must run as non-root with the RuntimeDefault seccomp profile.
+        pattern:
+          spec:
+            securityContext:
+              runAsNonRoot: true
+              seccompProfile:
+                type: RuntimeDefault

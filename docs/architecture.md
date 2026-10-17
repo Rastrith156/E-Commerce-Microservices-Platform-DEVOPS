@@ -1,42 +1,65 @@
-# Architecture
+# Architecture and deployment boundaries
 
-## Purpose
+## Application
 
-This document defines the intended high-level boundaries for the E-Commerce Microservices Platform. Phase 1 creates repository placeholders only; no service runtime, deployment, or CI/CD implementation is included.
+The React/Vite frontend uses same-origin API paths. The local Nginx container
+proxies those paths to three Spring Boot services: catalog (8081), cart (8082),
+and order (8083). Each Java service exposes Actuator liveness/readiness probes
+and Prometheus-format HTTP request metrics. Actuator metrics are not, by
+themselves, a monitoring backend.
 
-## Components
+The order service defaults to simulated PayPal sandbox behavior when payment
+credentials are absent. No production payment credentials or live-payment
+claims are part of this delivery.
 
-| Component | Responsibility | Planned interface |
-|---|---|---|
-| Frontend | Product browsing, cart interaction, and checkout UI | Calls backend REST APIs |
-| Catalog Service | Product listings and product details | REST API |
-| Cart Service | Per-user cart items and totals | REST API |
-| Order Service | Checkout validation and order creation | REST API |
+Current catalog data and cart/order state are in-memory/demo data. Persistence,
+identity, authorization, and durable order processing are not implemented;
+the Kubernetes scaffold is not a claim that these application services are
+production-ready.
 
-## Intended interaction
+## CI and supply chain
 
-```text
-User
-  |
-  v
-Frontend
-  |------> Catalog Service
-  |------> Cart Service
-  `------> Order Service
-```
+Jenkins runs on a Linux agent with Docker, uses `npm ci` and Maven checksum
+verification, and gates publication on lint/build, backend tests, SonarQube,
+Gitleaks, Trivy filesystem/dependency/image scans, and Compose smoke checks.
+Only after those gates does the trusted `main` job publish commit-tagged
+images, record their registry digests, sign the digests with configured
+keyless Cosign identity, and verify the published signatures.
 
-The exact language, framework, API contracts, persistence choices, and inter-service communication patterns will be selected in later implementation phases. Each service has an isolated `src/`, `tests/`, and README area to support independent development.
+Image vulnerability policy is independent of signature policy: a valid
+signature proves the configured identity signed that digest; it does not
+prove the image is vulnerability-free. HIGH and CRITICAL findings fail CI.
+There are no approved Trivy suppressions in this checkout.
 
-## Phase boundaries
+## GitOps and progressive delivery
 
-### Included now
+The contents of [`../gitops`](../gitops) are intended for a separate repository.
+Argo CD follows that repository as the deployment source of truth, with
+self-healing enabled and pruning disabled in dev, staging, and prod. CI opens a
+PR to update dev only; staging and prod use separate reviewed PRs and reuse
+the same digests.
 
-- Repository layout
-- Version-control workflow
-- Contribution and review rules
-- GitHub collaboration templates
-- Branch-protection instructions
+The Java services use Argo Rollouts 5% / 20% / 50% / 100% canary steps and
+Prometheus analysis for HTTP availability, 5xx ratio, and p95 latency. The
+queries are backed by Actuator/Micrometer instrumentation in this repo, but
+they require an independently provisioned Prometheus service and scrape
+configuration that attaches the `application` label. The address placeholder
+is intentionally invalid: rollout analysis will not silently pass without
+monitoring.
 
-### Explicitly deferred
+No traffic router or ingress is installed here. Without one, weights are
+replica-count approximations and small replica sets cannot implement exact
+percentages. Frontend uses a protected rolling update because frontend
+telemetry is not currently available. Configure a supported router and
+frontend metrics before claiming exact traffic splitting or frontend canaries.
 
-Application code, Dockerfiles, pipelines, Kubernetes manifests, Helm charts, Terraform, Ansible, monitoring, dashboards, container scanning, and SAST configuration.
+Production and staging add an indefinite pause before the 100% rollout step.
+Removing that pause is a Git change requiring the environment's protected-branch
+review process. A successful analysis alone cannot promote production.
+
+## Explicitly unprovisioned
+
+GCP project/IAM, Artifact Registry, GKE, Argo CD, Argo Rollouts, Kyverno,
+Prometheus, ingress/traffic routing, domain/TLS, private GitOps repository,
+Jenkins plugins and credentials, and GitHub branch rulesets all require
+operator setup. No cloud resources or cluster changes have been made.

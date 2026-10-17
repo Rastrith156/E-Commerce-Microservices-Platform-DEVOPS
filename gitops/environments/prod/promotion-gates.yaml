@@ -1,0 +1,4 @@
+- op: add
+  path: /spec/strategy/canary/steps/9
+  value:
+    pause: {}
