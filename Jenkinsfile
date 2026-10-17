@@ -111,7 +111,7 @@ pipeline {
                     for service in catalog-service cart-service order-service; do
                       docker run --rm -v jenkins-agent-work:/agent -w "/agent/workspace/E-Commerce-DevSecOps-CI/services/$service" \
                         --user 1000:1000 -e HOME=/tmp -e MAVEN_CONFIG=/tmp/.m2 maven:3.9.9-eclipse-temurin-21-alpine \
-                        mvn -B -ntp -C -Dmaven.repo.local=/tmp/.m2/repository dependency:go-offline
+                        mvn -B -ntp -C -Dmaven.repo.local=/tmp/.m2/repository -DskipTests=false verify
                     done
                 '''
             }
@@ -133,7 +133,7 @@ pipeline {
                     for service in catalog-service cart-service order-service; do
                       docker run --rm -v jenkins-agent-work:/agent -w "/agent/workspace/E-Commerce-DevSecOps-CI/services/$service" \
                         --user 1000:1000 -e HOME=/tmp -e MAVEN_CONFIG=/tmp/.m2 maven:3.9.9-eclipse-temurin-21-alpine \
-                        mvn -B -ntp -C -Dmaven.repo.local=/tmp/.m2/repository verify
+                        mvn -B -ntp -C -Dmaven.repo.local=/tmp/.m2/repository -DskipTests=false verify
                     done
                 '''
             }
