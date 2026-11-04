@@ -134,6 +134,7 @@ pipeline {
             steps {
                 sh '''
                     set -eu
+                    docker run --rm -v jenkins-maven-cache:/maven-cache alpine:3.22 sh -ec 'mkdir -p /maven-cache/.m2/repository && chown -R 1000:1000 /maven-cache/.m2'
                     for service in catalog-service cart-service order-service; do
                       docker run --rm -v jenkins-agent-work:/agent -v jenkins-maven-cache:/tmp \
                         -w "/agent/workspace/E-Commerce-DevSecOps-CI/services/$service" \
@@ -147,8 +148,20 @@ pipeline {
             }
             post {
                 always {
-                    junit testResults: 'services/*/target/surefire-reports/TEST-*.xml',
-                          allowEmptyResults: false
+                    script {
+                        def reportsExist = sh(
+                            script: "find services -path '*/target/surefire-reports/TEST-*.xml' -print -quit | grep -q .",
+                            returnStatus: true
+                        ) == 0
+                        if (reportsExist) {
+                            junit testResults: 'services/*/target/surefire-reports/TEST-*.xml',
+                                  allowEmptyResults: false
+                        } else if (currentBuild.currentResult == 'SUCCESS') {
+                            error('Maven verification completed without producing Surefire test reports')
+                        } else {
+                            echo 'No Surefire reports: Maven failed before tests could produce results.'
+                        }
+                    }
                 }
             }
         }
