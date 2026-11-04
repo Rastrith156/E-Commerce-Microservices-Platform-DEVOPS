@@ -303,7 +303,6 @@ export default function App() {
   const [open, setOpen] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState(null);
   const [paymentStatusState, setPaymentStatusState] = useState('idle');
-  const paymentStatusStateRef = useRef(paymentStatusState);
   const [busyActions, setBusyActions] = useState(() => new Set());
   const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [payPalReady, setPayPalReady] = useState(false);
@@ -369,33 +368,22 @@ export default function App() {
 
   usePublicPageMetadata(pathname, consent);
 
-  useEffect(() => {
-    paymentStatusStateRef.current = paymentStatusState;
-  }, [paymentStatusState]);
+  const loadPaymentStatus = useCallback(async () => {
+    setPaymentStatusState('loading');
+    try {
+      const status = await api.paymentStatus();
+      setPaymentStatus(status);
+      setPaymentStatusState('ready');
+    } catch (error) {
+      setPaymentStatusState('error');
+      setFeedback({ message: error.message || 'Payment status could not be checked.' });
+    }
+  }, []);
 
-  useEffect(() => {
-    if (!open || paymentStatusStateRef.current !== 'idle') return undefined;
-
-    let active = true;
-    const loadPaymentStatus = async () => {
-      setPaymentStatusState('loading');
-      try {
-        const status = await api.paymentStatus();
-        if (!active) return;
-        setPaymentStatus(status);
-        setPaymentStatusState('ready');
-      } catch (error) {
-        if (!active) return;
-        setPaymentStatusState('error');
-        setFeedback({ message: error.message || 'Payment status could not be checked.' });
-      }
-    };
-
-    void loadPaymentStatus();
-    return () => {
-      active = false;
-    };
-  }, [open]);
+  const openCart = () => {
+    setOpen(true);
+    if (paymentStatusState === 'idle') void loadPaymentStatus();
+  };
 
   useEffect(() => {
     if (!open) return undefined;
@@ -617,7 +605,7 @@ export default function App() {
 
   return (
     <>
-      <Header count={count} onOpenCart={() => setOpen(true)} search={search} onSearchChange={setSearch} />
+      <Header count={count} onOpenCart={openCart} search={search} onSearchChange={setSearch} />
       <main id="main-content">
         {route === 'home' && (
           <>
@@ -867,7 +855,7 @@ export default function App() {
                       {paymentStatusState === 'error' && 'Payment status is unavailable. Retry before checkout.'}
                     </p>
                     {paymentStatusState === 'error' && (
-                      <button type="button" className="textButton retryStatus" onClick={() => setPaymentStatusState('idle')}>
+                      <button type="button" className="textButton retryStatus" onClick={() => void loadPaymentStatus()}>
                         Retry payment status
                       </button>
                     )}

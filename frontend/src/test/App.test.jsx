@@ -140,4 +140,65 @@ describe('storefront routes and states', () => {
     expect(api.capture).toHaveBeenCalledWith('SANDBOX-TEST');
     expect(api.clear).toHaveBeenCalledWith('demo-user');
   });
+
+  it('retries a failed cart load and renders the empty bag state', async () => {
+    const user = userEvent.setup();
+    api.cart.mockRejectedValueOnce(new Error('Cart service offline'));
+    render(<App />);
+    await screen.findByRole('heading', { name: 'Everyday icons' });
+    await user.click(screen.getByRole('button', { name: 'Open shopping bag, 0 items' }));
+
+    expect(await screen.findByText('Cart service offline')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Retry loading bag' }));
+    expect(await screen.findByRole('heading', { name: 'Your bag is empty' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Browse products' }).getAttribute('href')).toBe('/shop/');
+    await user.click(screen.getAllByRole('button', { name: 'Close shopping bag' })[1]);
+    expect(screen.queryByRole('dialog', { name: /items/i })).toBeNull();
+  });
+
+  it('updates quantities and removes an item when its quantity reaches zero', async () => {
+    const user = userEvent.setup();
+    const cartWithQuantity = quantity => ({ items: [{ productId: 'chair-form', quantity }] });
+    api.cart.mockResolvedValue(cartWithQuantity(2));
+    api.update
+      .mockResolvedValueOnce(cartWithQuantity(3))
+      .mockResolvedValueOnce(cartWithQuantity(2))
+      .mockResolvedValueOnce(cartWithQuantity(1));
+    api.remove.mockResolvedValueOnce({ items: [] });
+    render(<App />);
+    await screen.findByRole('heading', { name: 'Everyday icons' });
+    await user.click(screen.getByRole('button', { name: 'Open shopping bag, 2 items' }));
+
+    const quantity = screen.getByLabelText('Quantity for Form Lounge Chair');
+    await user.click(within(quantity).getByRole('button', { name: 'Add one Form Lounge Chair' }));
+    expect(await within(quantity).findByText('3')).toBeTruthy();
+    await user.click(within(quantity).getByRole('button', { name: 'Remove one Form Lounge Chair' }));
+    expect(await within(quantity).findByText('2')).toBeTruthy();
+    await user.click(within(quantity).getByRole('button', { name: 'Remove one Form Lounge Chair' }));
+    expect(await within(quantity).findByText('1')).toBeTruthy();
+    await user.click(within(quantity).getByRole('button', { name: 'Remove one Form Lounge Chair' }));
+    expect(await screen.findByRole('heading', { name: 'Your bag is empty' })).toBeTruthy();
+    expect(api.update).toHaveBeenNthCalledWith(1, 'demo-user', 'chair-form', 3);
+    expect(api.remove).toHaveBeenCalledWith('demo-user', 'chair-form');
+  });
+
+  it('retries payment status and a failed sandbox order creation', async () => {
+    const user = userEvent.setup();
+    api.cart.mockResolvedValue({ items: [{ productId: 'chair-form', quantity: 1 }] });
+    api.paymentStatus
+      .mockRejectedValueOnce(new Error('Payment service offline'))
+      .mockResolvedValueOnce({ mode: 'simulated-sandbox' });
+    api.createOrder.mockRejectedValueOnce(new Error('Order service offline'));
+    render(<App />);
+    await screen.findByRole('heading', { name: 'Everyday icons' });
+    await user.click(screen.getByRole('button', { name: 'Open shopping bag, 1 items' }));
+
+    expect(await screen.findByText('Payment status is unavailable. Retry before checkout.')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Retry payment status' }));
+    expect(await screen.findByText(/Sandbox simulation only/)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: /complete sandbox simulation/i }));
+    expect(await screen.findByText('Order service offline')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByRole('heading', { name: 'Sandbox checkout completed' })).toBeTruthy();
+  });
 });

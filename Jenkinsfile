@@ -125,7 +125,7 @@ pipeline {
             steps {
                 sh '''
                     set -eu
-                    docker run --rm -v jenkins-agent-work:/agent -w "/agent/workspace/E-Commerce-DevSecOps-CI/frontend" --user 1000:1000 node:24.15.0-alpine3.22 sh -ec 'npm run lint && npm run build'
+                    docker run --rm -v jenkins-agent-work:/agent -w "/agent/workspace/E-Commerce-DevSecOps-CI/frontend" --user 1000:1000 node:24.15.0-alpine3.22 sh -ec 'npm run lint && npm run test:coverage && npm run build'
                 '''
             }
         }

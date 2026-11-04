@@ -14,5 +14,11 @@ export default defineConfig(({ mode }) => ({
     setupFiles: ['./src/test/setup.js'],
     clearMocks: true,
     restoreMocks: true,
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov'],
+      include: ['src/**/*.{js,jsx}'],
+      exclude: ['src/test/**'],
+    },
   },
 }));
