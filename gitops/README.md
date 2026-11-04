@@ -18,3 +18,14 @@ monitoring prerequisites, and repository validation.
 Apply only the Argo CD Application for an environment after its image digests
 are valid. Automated sync is enabled, self-heal is enabled, and pruning is
 disabled in every environment.
+
+The order Rollout reads `SPRING_DATASOURCE_URL`,
+`SPRING_DATASOURCE_USERNAME`, and `SPRING_DATASOURCE_PASSWORD` from the
+namespace-local Secret `ecommerce-order-db`. Provision it through Secret
+Manager/External Secrets or an approved cluster secret workflow before syncing
+workloads. Its JDBC URL must reach a private PostgreSQL endpoint; no database
+endpoint or credential belongs in Git. This repository does not provision a
+production database or a secret-sync controller.
+
+See [`../docs/gcp-mumbai-deployment.md`](../docs/gcp-mumbai-deployment.md) for
+the cost-conscious deployment outline and remaining cloud prerequisites.

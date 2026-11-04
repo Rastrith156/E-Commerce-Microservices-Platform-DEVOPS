@@ -3,6 +3,19 @@ server:
 spring:
   application:
     name: order-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/ecommerce_orders}
+    username: ${SPRING_DATASOURCE_USERNAME:ecommerce_app}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+    hikari:
+      connection-timeout: 5000
+      maximum-pool-size: 10
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
 services:
   catalog-url: ${CATALOG_SERVICE_URL:http://localhost:8081}
 paypal:
@@ -18,6 +31,7 @@ management:
     health:
       probes:
         enabled: true
+      show-details: never
   metrics:
     tags:
       application: ${spring.application.name}

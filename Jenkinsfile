@@ -9,9 +9,14 @@ pipeline {
         buildDiscarder(logRotator(numToKeepStr: '30'))
     }
 
+    parameters {
+        booleanParam(name: 'PUBLISH_IMAGES', defaultValue: false,
+                     description: 'Explicitly enable registry publishing, signing, and GitOps promotion.')
+    }
+
     environment {
         REPORTS = 'reports'
-        TRIVY_VERSION = '0.61.1'
+        TRIVY_VERSION = '0.76.1'
         GITLEAKS_VERSION = 'v8.24.2'
         DOCKER_CONFIG = "${WORKSPACE}/.docker-config"
     }
@@ -50,6 +55,10 @@ pipeline {
                         echo "PR branch must include the current target branch; rebase or merge it before validation" >&2
                         exit 1
                       }
+                    fi
+                    if [ -z "${ORDER_DB_PASSWORD:-}" ]; then
+                      ORDER_DB_PASSWORD="$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')"
+                      export ORDER_DB_PASSWORD
                     fi
                     docker compose config --quiet
                 '''
@@ -108,11 +117,6 @@ pipeline {
                 sh '''
                     set -eu
                     docker run --rm -v jenkins-agent-work:/agent -w "/agent/workspace/E-Commerce-DevSecOps-CI/frontend" --user 1000:1000 node:24.15.0-alpine3.22 sh -ec 'npm ci --ignore-scripts=false'
-                    for service in catalog-service cart-service order-service; do
-                      docker run --rm -v jenkins-agent-work:/agent -w "/agent/workspace/E-Commerce-DevSecOps-CI/services/$service" \
-                        --user 1000:1000 -e HOME=/tmp -e MAVEN_CONFIG=/tmp/.m2 maven:3.9.9-eclipse-temurin-21-alpine \
-                        mvn -B -ntp -C -Dmaven.repo.local=/tmp/.m2/repository -DskipTests=false verify
-                    done
                 '''
             }
         }
@@ -131,9 +135,13 @@ pipeline {
                 sh '''
                     set -eu
                     for service in catalog-service cart-service order-service; do
-                      docker run --rm -v jenkins-agent-work:/agent -w "/agent/workspace/E-Commerce-DevSecOps-CI/services/$service" \
-                        --user 1000:1000 -e HOME=/tmp -e MAVEN_CONFIG=/tmp/.m2 maven:3.9.9-eclipse-temurin-21-alpine \
-                        mvn -B -ntp -C -Dmaven.repo.local=/tmp/.m2/repository -DskipTests=false verify
+                      docker run --rm -v jenkins-agent-work:/agent -v jenkins-maven-cache:/tmp \
+                        -w "/agent/workspace/E-Commerce-DevSecOps-CI/services/$service" \
+                        --user 1000:1000 -e HOME=/tmp -e MAVEN_CONFIG=/tmp/.m2 \
+                        maven:3.9.9-eclipse-temurin-21-alpine \
+                        mvn -s maven-settings.xml -B -ntp -C -Dmaven.wagon.http.retryHandler.count=5 \
+                          -Dmaven.wagon.rto=30000 -Dmaven.repo.local=/tmp/.m2/repository \
+                          -DskipTests=false verify
                     done
                 '''
             }
@@ -164,14 +172,45 @@ pipeline {
 
         stage('Filesystem and dependency scan') {
             steps {
-                sh '''
+                catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                    sh '''
                     set -eu
-                    docker run --rm -v "$WORKSPACE:/workspace" -w /workspace \
-                      "aquasec/trivy:${TRIVY_VERSION}" fs \
+                    trivy_retry() {
+                      attempt=1
+                      while [ "$attempt" -le 5 ]; do
+                        if "$@"; then return 0; else status=$?; fi
+                        if [ "$status" -eq 10 ]; then return 10; fi
+                        if [ "$attempt" -eq 5 ]; then return "$status"; fi
+                        delay=$((attempt * 3))
+                        echo "Trivy infrastructure error (exit $status); retry $attempt/5 in ${delay}s" >&2
+                        sleep "$delay"
+                        attempt=$((attempt + 1))
+                      done
+                    }
+                    fs_status=0
+                    trivy_retry docker run --rm -e HOME=/maven-cache \
+                      -v jenkins-agent-work:/workspace -v jenkins-maven-cache:/maven-cache:ro \
+                      -v jenkins-trivy-cache:/root/.cache \
+                      -w /workspace/workspace/E-Commerce-DevSecOps-CI \
+                      "aquasec/trivy:${TRIVY_VERSION}" --cache-dir /root/.cache/trivy --timeout 15m fs \
+                      --db-repository mirror.gcr.io/aquasec/trivy-db:2,ghcr.io/aquasecurity/trivy-db:2 \
+                      --java-db-repository public.ecr.aws/aquasecurity/trivy-java-db:1,mirror.gcr.io/aquasec/trivy-java-db:1,ghcr.io/aquasecurity/trivy-java-db:1 \
                       --config trivy.yaml --scanners vuln,misconfig,secret \
-                      --severity HIGH,CRITICAL --exit-code 1 \
-                      --format sarif --output reports/trivy-fs.sarif .
-                '''
+                      --severity HIGH,CRITICAL --exit-code 10 \
+                      --format sarif --output reports/trivy-fs.sarif . || fs_status=$?
+                    test -s reports/trivy-fs.sarif || {
+                      echo 'Trivy filesystem SARIF was not created' >&2
+                      exit 1
+                    }
+                    if [ "$fs_status" -eq 10 ]; then
+                      echo 'Trivy filesystem scan found HIGH/CRITICAL findings' >&2
+                      exit 1
+                    elif [ "$fs_status" -ne 0 ]; then
+                      echo "Trivy filesystem scan failed (exit $fs_status)" >&2
+                      exit "$fs_status"
+                    fi
+                    '''
+                }
             }
         }
 
@@ -197,19 +236,57 @@ pipeline {
             steps {
                 sh '''
                     set -eu
+                    trivy_retry() {
+                      attempt=1
+                      while [ "$attempt" -le 5 ]; do
+                        if "$@"; then return 0; else status=$?; fi
+                        if [ "$status" -eq 10 ]; then return 10; fi
+                        if [ "$attempt" -eq 5 ]; then return "$status"; fi
+                        delay=$((attempt * 3))
+                        echo "Trivy infrastructure error (exit $status); retry $attempt/5 in ${delay}s" >&2
+                        sleep "$delay"
+                        attempt=$((attempt + 1))
+                      done
+                    }
+                    scan_failed=0
                     for image in catalog-service cart-service order-service frontend; do
                       ref="ecommerce/${image}:ci-${BUILD_NUMBER}"
-                      docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-                        -v "$WORKSPACE:/workspace" -w /workspace \
-                        "aquasec/trivy:${TRIVY_VERSION}" image \
-                        --config trivy.yaml --severity HIGH,CRITICAL --exit-code 1 \
-                        --format sarif --output "reports/trivy-${image}.sarif" "$ref"
-                      docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-                        -v "$WORKSPACE:/workspace" -w /workspace \
-                        "aquasec/trivy:${TRIVY_VERSION}" image \
-                        --config trivy.yaml --format cyclonedx \
-                        --output "reports/${image}.cdx.json" "$ref"
+                      scan_status=0
+                      trivy_retry docker run --rm -e HOME=/maven-cache -v /var/run/docker.sock:/var/run/docker.sock \
+                        -v jenkins-maven-cache:/maven-cache:ro \
+                        -v jenkins-trivy-cache:/root/.cache \
+                        -v jenkins-agent-work:/workspace \
+                        -w /workspace/workspace/E-Commerce-DevSecOps-CI \
+                        "aquasec/trivy:${TRIVY_VERSION}" --cache-dir /root/.cache/trivy --timeout 15m image \
+                        --db-repository mirror.gcr.io/aquasec/trivy-db:2,ghcr.io/aquasecurity/trivy-db:2 \
+                        --java-db-repository public.ecr.aws/aquasecurity/trivy-java-db:1,mirror.gcr.io/aquasec/trivy-java-db:1,ghcr.io/aquasecurity/trivy-java-db:1 \
+                        --config trivy.yaml --severity HIGH,CRITICAL --exit-code 10 \
+                        --format sarif --output "reports/trivy-${image}.sarif" "$ref" || scan_status=$?
+                      if [ "$scan_status" -ne 0 ]; then
+                        echo "Trivy reported findings or an error for ${ref} (exit ${scan_status})" >&2
+                        scan_failed=1
+                      fi
+                      if ! test -s "reports/trivy-${image}.sarif"; then
+                        echo "Trivy did not create SARIF for ${ref}" >&2
+                        scan_failed=1
+                      fi
+                      sbom_status=0
+                      trivy_retry docker run --rm -e HOME=/maven-cache -v /var/run/docker.sock:/var/run/docker.sock \
+                        -v jenkins-maven-cache:/maven-cache:ro \
+                        -v jenkins-trivy-cache:/root/.cache \
+                        -v jenkins-agent-work:/workspace \
+                        -w /workspace/workspace/E-Commerce-DevSecOps-CI \
+                        "aquasec/trivy:${TRIVY_VERSION}" --cache-dir /root/.cache/trivy --timeout 15m image \
+                        --db-repository mirror.gcr.io/aquasec/trivy-db:2,ghcr.io/aquasecurity/trivy-db:2 \
+                        --java-db-repository public.ecr.aws/aquasecurity/trivy-java-db:1,mirror.gcr.io/aquasec/trivy-java-db:1,ghcr.io/aquasecurity/trivy-java-db:1 \
+                        --config trivy.yaml --format cyclonedx --exit-code 0 \
+                        --output "reports/${image}.cdx.json" "$ref" || sbom_status=$?
+                      if [ "$sbom_status" -ne 0 ] || ! test -s "reports/${image}.cdx.json"; then
+                        echo "Trivy did not create the ${image} SBOM" >&2
+                        scan_failed=1
+                      fi
                     done
+                    test "$scan_failed" -eq 0 || exit 1
                 '''
             }
         }
@@ -218,16 +295,21 @@ pipeline {
             steps {
                 sh '''
                     set -eu
-                    export COMPOSE_PROJECT_NAME="ecommerce-${BUILD_NUMBER}"
+                    build_key="${BUILD_TAG:-job}-${BUILD_NUMBER}"
+                    export COMPOSE_PROJECT_NAME="ecommerce-ci-$(printf '%s' "$build_key" | sha256sum | cut -c1-12)"
                     export CATALOG_HOST_PORT=$((30000 + BUILD_NUMBER % 1000))
                     export CART_HOST_PORT=$((31000 + BUILD_NUMBER % 1000))
                     export ORDER_HOST_PORT=$((32000 + BUILD_NUMBER % 1000))
                     export FRONTEND_HOST_PORT=$((33000 + BUILD_NUMBER % 1000))
+                    if [ -z "${ORDER_DB_PASSWORD:-}" ]; then
+                      ORDER_DB_PASSWORD="$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')"
+                      export ORDER_DB_PASSWORD
+                    fi
                     export CATALOG_IMAGE="ecommerce/catalog-service:ci-${BUILD_NUMBER}"
                     export CART_IMAGE="ecommerce/cart-service:ci-${BUILD_NUMBER}"
                     export ORDER_IMAGE="ecommerce/order-service:ci-${BUILD_NUMBER}"
                     export FRONTEND_IMAGE="ecommerce/frontend:ci-${BUILD_NUMBER}"
-                    cleanup() { docker compose down --volumes --remove-orphans; }
+                    cleanup() { docker compose down --remove-orphans; }
                     trap cleanup EXIT
                     docker compose up --detach --no-build
                     for attempt in $(seq 1 60); do
@@ -250,7 +332,12 @@ pipeline {
         }
 
         stage('Push verified immutable images') {
-            when { branch 'main' }
+            when {
+                allOf {
+                    branch 'main'
+                    expression { params.PUBLISH_IMAGES && currentBuild.currentResult == 'SUCCESS' }
+                }
+            }
             steps {
                 script {
                     if (!env.IMAGE_REGISTRY?.trim()) {
@@ -286,7 +373,12 @@ pipeline {
         }
 
         stage('Sign and verify published digests') {
-            when { branch 'main' }
+            when {
+                allOf {
+                    branch 'main'
+                    expression { params.PUBLISH_IMAGES && currentBuild.currentResult == 'SUCCESS' }
+                }
+            }
             steps {
                 withCredentials([string(credentialsId: 'cosign-oidc-token',
                                         variable: 'SIGSTORE_ID_TOKEN')]) {
@@ -314,7 +406,12 @@ pipeline {
         }
 
         stage('Open GitOps dev promotion PR') {
-            when { branch 'main' }
+            when {
+                allOf {
+                    branch 'main'
+                    expression { params.PUBLISH_IMAGES && currentBuild.currentResult == 'SUCCESS' }
+                }
+            }
             steps {
                 script {
                     if (!env.GITOPS_REPOSITORY?.trim()) {
@@ -382,6 +479,8 @@ ASKPASS
 
     post {
         always {
+            archiveArtifacts artifacts: 'reports/**,frontend/dist/**,services/*/target/surefire-reports/**',
+                             allowEmptyArchive: true, fingerprint: true
             sh '''
                 set -eu
                 if [ -d "$DOCKER_CONFIG" ]; then
@@ -393,8 +492,6 @@ ASKPASS
                   test "$logout_status" -eq 0
                 fi
             '''
-            archiveArtifacts artifacts: 'reports/**,frontend/dist/**,services/*/target/surefire-reports/**',
-                             allowEmptyArchive: true, fingerprint: true
         }
         failure {
             echo 'CI FAILED: inspect stage logs and archived reports; no unverified image is promoted.'

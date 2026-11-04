@@ -24,6 +24,8 @@ reports/
 .git-askpass
 /tmp/
 /gitops-promotion*/
+*.dump
+/backups/
 
 # IDE / OS
 .vscode/

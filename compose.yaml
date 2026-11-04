@@ -1,4 +1,20 @@
 ﻿services:
+  order-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${ORDER_DB_NAME:-ecommerce_orders}
+      POSTGRES_USER: ${ORDER_DB_USER:-ecommerce_app}
+      POSTGRES_PASSWORD: ${ORDER_DB_PASSWORD:?Set ORDER_DB_PASSWORD in your environment}
+    volumes:
+      - ecommerce_orders_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
   catalog-service:
     image: "${CATALOG_IMAGE:-ecommerce/catalog-service:local}"
     build: ./services/catalog-service
@@ -19,6 +35,18 @@
     environment:
       CATALOG_SERVICE_URL: http://catalog-service:8081
       PAYPAL_BASE_URL: https://api-m.sandbox.paypal.com
+      SPRING_DATASOURCE_URL: jdbc:postgresql://order-db:5432/${ORDER_DB_NAME:-ecommerce_orders}
+      SPRING_DATASOURCE_USERNAME: ${ORDER_DB_USER:-ecommerce_app}
+      SPRING_DATASOURCE_PASSWORD: ${ORDER_DB_PASSWORD:?Set ORDER_DB_PASSWORD in your environment}
+    depends_on:
+      order-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8083/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
 
   frontend:
     image: "${FRONTEND_IMAGE:-ecommerce/frontend:local}"
@@ -29,3 +57,6 @@
       - catalog-service
       - cart-service
       - order-service
+
+volumes:
+  ecommerce_orders_data:

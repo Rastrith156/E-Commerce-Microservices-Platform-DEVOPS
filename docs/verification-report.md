@@ -1,88 +1,41 @@
-# Verification report
+# Tool and technology verification
 
-This workspace was audited against the available local environment. The implementation is a secure delivery scaffold, not a live production deployment. No GCP project, Kubernetes cluster, registry, SonarQube instance, Argo CD installation, Kyverno cluster, GitOps remote, or GitHub branch rulesets were created or configured here.
+Status checked on 2026-11-04. The repository contains a working local application and delivery templates; it is not a live cloud deployment.
 
-## Passing checks
+| Tool / technology | Status | Evidence or remaining requirement |
+| --- | --- | --- |
+| Git / GitHub | VERIFIED | Local `main` checkout and `origin` are present. No commit or push was made. |
+| Jenkins | IMPLEMENTED BUT NOT VERIFIED | Jenkinsfile defines CI, scan, smoke, publish, and archive stages. Trivy shell blocks pass `sh -n`; full pipeline and declarative lint remain unverified. The local agent is exited and points to an unreachable old controller address. |
+| Linux Docker agent | BLOCKED BY PREREQUISITE | `jenkins-linux-docker` exits with `No route to host` for `http://172.17.0.4:8080/tcpSlaveAgentListener/`. Its prior controller is stopped. Reconnect the agent to the intended controller before running CI. |
+| Docker / Docker Compose | VERIFIED | Compose config validates. All four application images rebuilt. An isolated Compose stack started with healthy PostgreSQL and returned HTTP 200 from frontend, catalog, catalog metrics, cart, order health, and PayPal status. Its database volume is preserved. |
+| React / Vite / Node.js / npm | VERIFIED | Existing frontend lint, production build, and 11 Vitest tests passed in the previous verification run. |
+| Java 21 / Spring Boot / Maven | VERIFIED | Existing Maven verification passed for all three services. Current Docker rebuilds reused the Maven build layers and completed successfully. |
+| SonarQube | IMPLEMENTED BUT NOT VERIFIED | Local server health endpoint reports `UP`; no project analysis or quality-gate result was produced. |
+| SonarScanner CLI | IMPLEMENTED BUT NOT VERIFIED | Jenkins references the configured `sonar-scanner` tool, but no CI agent was available to run it. |
+| Gitleaks | VERIFIED | Prior v8.24.2 history and working-tree scans reported no leaks. |
+| Trivy filesystem scan | IMPLEMENTED BUT NOT VERIFIED | The first scan stopped on Maven Central HTTP 429. The Trivy config now has Google Maven Central and repo1 fallbacks; Jenkins mounts its read-only Maven cache into Trivy. A complete post-fix filesystem scan has not finished. |
+| Trivy image scans | IMPLEMENTED BUT NOT VERIFIED | The pre-fix frontend image had 49 HIGH/CRITICAL findings. After adding Alpine security upgrades and rebuilding, the frontend scan reported zero HIGH/CRITICAL findings. Catalog, cart, and order scans are still blocked on the 948 MiB Java index download. No findings are suppressed. |
+| SBOM tooling | IMPLEMENTED BUT NOT VERIFIED | A CycloneDX SBOM for the rebuilt frontend validates and contains 71 components. The other three SBOMs and Jenkins artifact archiving have not been verified in a pipeline run. |
+| Container registry | BLOCKED BY PREREQUISITE | No registry URL or writer credentials are configured here. Publishing remains disabled. |
+| Kubernetes | VERIFIED | `kubectl kustomize` rendered the app base, Argo CD apps, Kyverno policies, and dev/staging/prod overlays. |
+| Argo CD | IMPLEMENTED BUT NOT VERIFIED | Application manifests exist, but the separate GitOps remote, real digests, and cluster are external prerequisites. |
+| Kyverno | VERIFIED | Kyverno CLI v1.14.0 policy test: 9 passed, 0 failed. Policy remains in Audit mode. |
+| Argo Rollouts | IMPLEMENTED BUT NOT VERIFIED | Canary templates fail closed while the Prometheus address is a placeholder; no live metrics backend or cluster is connected. |
+| Prometheus | IMPLEMENTED BUT NOT VERIFIED | Catalog exposes `/actuator/prometheus` and returned HTTP 200 locally. A Prometheus server/scrape target is not configured for this project. |
+| Grafana | NOT IMPLEMENTED | No project Grafana service, provisioning, or dashboards are configured. |
+| PostgreSQL | VERIFIED | Flyway migration and durable orders are implemented. Previous repository/persistence and container-restart lifecycle tests passed; they were not repeated. Compose keeps the database on a named volume and exposes no host port. |
+| GCP / public deployment | BLOCKED BY PREREQUISITE | Deployment plan exists. A GCP project, GKE, private Cloud SQL, registry, secret sync, backups, HTTPS ingress, and reviewed DNS changes are not provisioned. No deployment or DNS changes were made. |
 
-The following checks ran successfully in the current local environment:
+## Changes verified in this review
 
-- `docker compose -f compose.yaml config --quiet` — passed.
-- `docker compose -f compose.yaml build` — passed for all four application images.
-- Gitleaks v8.24.2 Git-history scan — passed (9 commits scanned; no leaks found).
-- Gitleaks v8.24.2 working-tree scan — passed (no leaks found).
-- `npm run lint` in the frontend — passed.
-- `npm test` in the frontend — passed (11 tests).
-- `npm run build` in the frontend — passed.
-- `npm ci` and `npm audit` in the frontend — passed after upgrading Vitest to 5.0.5 (0 vulnerabilities).
-- `mvn -B -ntp -C verify` in the pinned Maven build image for catalog, cart, and order — passed (2 tests per service).
-- Full Compose runtime smoke checks — frontend, same-origin catalog API, catalog health/metrics, cart, and order status returned HTTP 200; Nginx served the favicon/social image and public pages, while unknown routes, assets, and API paths returned HTTP 404.
-- The built Nginx image returned the custom 404 document with HTTP 404. `/sitemap.xml` correctly returns 404 while `VITE_SITE_URL` is unset; no production domain is fabricated.
-- Isolated Docker Compose runtime smoke checks for the frontend, same-origin API, catalog, cart, order status, and catalog Prometheus endpoint — passed.
-- The catalog runtime image returned HTTP 200 from `/actuator/prometheus`, with `http_server_requests_seconds` present.
-- `kubectl kustomize` for the GitOps app base, Argo CD app definitions, Kyverno policies, and all three environment overlays — passed.
-- Each environment overlay rendered the expected four digest-pinned application references with no non-digest image references.
-- `git diff --check` — passed.
-- `bash -n` on the root staging script and both GitOps smoke scripts — passed.
-- The shell blocks in both Jenkinsfiles were syntax-checked successfully using Git Bash.
-- Maven XML parsing for all three Spring Boot service `pom.xml` files — passed.
+- `docker compose -f compose.yaml build --pull` rebuilt catalog, cart, order, and frontend successfully after applying current Alpine package upgrades in their runtime stages.
+- The isolated Compose smoke run returned HTTP 200 from all six checks. Its test containers/network were stopped without `down -v`; `ecommerce-review-20261104_ecommerce_orders_data` remains intact.
+- The frontend image before remediation had 1 CRITICAL and 48 HIGH findings. `apk upgrade --no-cache` updated vulnerable Alpine packages; the rebuilt frontend scan then reported zero HIGH/CRITICAL results. SARIF is in `reports/local-audit-20261104-frontend-postfix/trivy-frontend.sarif`.
+- Trivy generated and parsed the frontend CycloneDX report at `reports/local-audit-20261104-frontend-postfix/frontend.cdx.json` (71 components).
+- `git diff --check` and Compose/Kustomize validation passed. PostgreSQL lifecycle tests were not rerun.
 
-## Failing or blocked checks
+## Remaining blockers
 
-The following checks did not pass and remain blocked by missing external dependencies or implementation gaps:
-
-- Real SonarQube analysis and quality gate — not run; no SonarQube server or Jenkins scanner tool was configured.
-- Trivy filesystem/dependency scan — blocked locally. The pinned Trivy v0.61.1 image was pulled, but after about 10 minutes its 128.03 MiB vulnerability database had reached only about 2.35% at roughly 200 KiB/s. The scan was stopped before scanning; it has no scanner exit code or completed report, and no pass is claimed.
-- Trivy final-image scans — not run to completion; they remain required in Jenkins after the blocking vulnerability database is available.
-- Real Cosign signing and verification — not run; the Cosign binary was not installed in the environment.
-- Real Kyverno CLI tests against cluster policies — not run; the Kyverno CLI was not installed in the environment.
-- Real Jenkins pipeline execution — not run; no Jenkins controller / agent was available here.
-- Real GitOps repository PR creation — not run; no separate GitOps remote or required GitHub token/credentials existed.
-- Real Argo CD and Argo Rollouts deployment reconciliation — not run; no cluster existed.
-- Real production/dev/staging smoke checks against cluster services — not run; no Kubernetes cluster or live ingress/traffic was available.
-- Real registry digest push/sign/publish flow — not run; no Artifact Registry, registry credentials, or repository existed.
-- Production canonical metadata and `/sitemap.xml` are intentionally omitted because `VITE_SITE_URL` is unset; configure the real root HTTPS domain before publishing the site.
-- Trivy remains unverified because its vulnerability database could not be downloaded in this environment; this is separate from the passing npm audit.
-
-## Specific application validation status
-
-The local application stack was exercised with freshly built Docker images, but not against a cluster, registry, or production ingress. All three backend Maven verification runs passed (2 tests per service). The Compose smoke run returned HTTP 200 for the storefront, same-origin catalog API, catalog health/Prometheus, cart, and order payment-status endpoint. Nginx served public assets and pages; unknown routes, assets, and API paths returned HTTP 404. The social metadata fallback now references the actual `social-card.svg` asset. Sitemap generation requires the real root HTTPS `VITE_SITE_URL`; it is deliberately omitted until configured.
-
-The original Maven smoke-test 404 was caused by the Prometheus metrics exporter being disabled unless explicitly enabled; the test had been using a test-only override that did not guarantee the runtime exporter was enabled. The catalog now sets `management.prometheus.metrics.export.enabled=true` in its application configuration, and the smoke test uses that same configuration. The service includes `spring-boot-starter-actuator` and the Spring Boot-managed `micrometer-registry-prometheus` dependency, exposes only `health,prometheus`, and serves Prometheus metrics from the rebuilt runtime image. Jenkins' composed-application smoke gate checks the catalog Prometheus endpoint as well. The production social-image metadata now defaults to the existing `social-card.svg` asset rather than a nonexistent PNG.
-
-## Untested components
-
-The following items remain untested and must be validated only in a real environment:
-
-- Jenkins multibranch pipeline execution
-- GitHub branch protection and status-check enforcement
-- SonarQube quality gate blocking behavior
-- Trivy severity enforcement and `.trivyignore` policy
-- Docker image builds in a Linux-capable pipeline runner
-- Final image Trivy scanning and SBOM generation
-- Cosign keyless signing and verification with the configured identity/issuer
-- Artifact Registry immutable tag and digest policy
-- GitOps PR automation against the separate GitOps repository
-- Argo CD sync and self-healing behavior
-- Argo Rollouts canary analysis, abort, and controlled promotion
-- Kyverno admission enforcement after policy validation
-- Production approval gates and rollback flow
-
-## External dependencies required before production deployment
-
-The following external components are required to complete the target GitOps platform and should be configured by operators before claiming deployment success:
-
-- GCP project and service identities
-- Artifact Registry or equivalent image registry
-- GKE cluster or equivalent Kubernetes runtime
-- Jenkins controller with Docker/Buildx and required plugins
-- GitHub repository with protected branches and status checks
-- SonarQube instance and scanner configuration
-- Prometheus (or equivalent metrics backend) with the required `application` label
-- Argo CD, Argo Rollouts, and Kyverno installations with CRDs
-- Real trusted Cosign identity/issuer settings
-- Separate GitOps repository and GitHub token permissions
-- Domain/TLS and ingress or traffic-routing support for staged and production rollout checks
-
-## Bottom line
-
-The repository now contains a secure-by-default delivery scaffold, validated source configuration, and production-oriented GitOps/Kubernetes templates. However, this environment did not include the real CI, registry, cluster, and monitoring services required to prove end-to-end deployment, signing, policy enforcement, or progressive delivery. The platform is therefore implemented as a production-ready template and configuration baseline, not as a deployed production system.
+- Jenkins full-pipeline execution needs the Docker-capable agent reconnected to the intended Jenkins controller. The current agent uses a stale controller URL; do not run the main-branch publishing pipeline until publishing is explicitly authorized.
+- The cold Trivy Java database is about 948 MiB. The ECR mirror is faster than GHCR/GCR in this environment, but the download still takes tens of minutes. The three Java-image scans, complete workspace scan, and their SBOMs must finish after the cached Java index is available.
+- SonarQube analysis, registry push/signing, cluster reconciliation, Argo Rollouts analysis, and GCP deployment need the external credentials and infrastructure listed above.

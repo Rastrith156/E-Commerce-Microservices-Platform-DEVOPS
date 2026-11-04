@@ -53,6 +53,11 @@ pipeline {
                         echo "Image reference is not pinned to a sha256 digest in ${environment}" >&2
                         exit 1
                       fi
+                      if grep -E '^[[:space:]]*(-[[:space:]]*)?image:' "reports/${environment}.yaml" \
+                        | grep -Eq '@sha256:0{64}$'; then
+                        echo "${environment} still contains bootstrap placeholder image digests" >&2
+                        exit 1
+                      fi
                     done
                 '''
             }

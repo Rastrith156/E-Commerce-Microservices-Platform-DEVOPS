@@ -17,22 +17,28 @@ spec:
                 - ecommerce-staging
                 - ecommerce-prod
       validate:
-        message: Application images must use the approved Artifact Registry and a sha256 digest.
+        message: Application images must use the approved Artifact Registry and a non-placeholder sha256 digest.
         foreach:
           - list: request.object.spec.containers
             deny:
               conditions:
                 any:
-                  - key: "{{ element.image }}"
-                    operator: NotMatches
-                    value: "^us-central1-docker\\.pkg\\.dev/PROJECT_ID/ecommerce/[^@]+@sha256:[a-f0-9]{64}$"
+                  - key: "{{ regex_match('^us-central1-docker\\.pkg\\.dev/PROJECT_ID/ecommerce/[^@]+@sha256:[a-f0-9]{64}$', '{{ element.image }}') }}"
+                    operator: Equals
+                    value: false
+                  - key: "{{ regex_match('^us-central1-docker\\.pkg\\.dev/PROJECT_ID/ecommerce/[^@]+@sha256:0{64}$', '{{ element.image }}') }}"
+                    operator: Equals
+                    value: true
           - list: request.object.spec.initContainers || `[]`
             deny:
               conditions:
                 any:
-                  - key: "{{ element.image }}"
-                    operator: NotMatches
-                    value: "^us-central1-docker\\.pkg\\.dev/PROJECT_ID/ecommerce/[^@]+@sha256:[a-f0-9]{64}$"
+                  - key: "{{ regex_match('^us-central1-docker\\.pkg\\.dev/PROJECT_ID/ecommerce/[^@]+@sha256:[a-f0-9]{64}$', '{{ element.image }}') }}"
+                    operator: Equals
+                    value: false
+                  - key: "{{ regex_match('^us-central1-docker\\.pkg\\.dev/PROJECT_ID/ecommerce/[^@]+@sha256:0{64}$', '{{ element.image }}') }}"
+                    operator: Equals
+                    value: true
     - name: restricted-container-security
       match:
         any:

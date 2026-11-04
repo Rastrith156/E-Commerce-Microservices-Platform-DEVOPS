@@ -4,7 +4,15 @@ severity:
   - CRITICAL
 ignore-unfixed: false
 scan:
+  skip-files:
+    - gitops/policies/tests/pod-noncompliant.yaml # Deliberate Kyverno negative test fixture; policy rejection is tested separately.
   scanners:
     - vuln
     - misconfig
     - secret
+  maven:
+    mirrors:
+      - source: https://repo.maven.apache.org/maven2/
+        targets:
+          - https://maven-central.storage-download.googleapis.com/maven2/
+          - https://repo1.maven.org/maven2/
