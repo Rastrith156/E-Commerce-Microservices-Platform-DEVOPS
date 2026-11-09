@@ -1,0 +1,9 @@
+{
+  "name": "ecommerce-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Frontend placeholder for the E-Commerce Microservices Platform",
+  "scripts": {
+    "test": "echo \"Frontend tests are not implemented in Phase 1\""
+  }
+}
