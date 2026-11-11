@@ -129,7 +129,18 @@ pipeline {
 
     stage('Backend Maven Tests') {
       steps {
-        sh 'mvn test -B -pl services/catalog-service,services/cart-service,services/order-service'
+        sh '''
+          set -e
+
+          echo "Testing Catalog Service against its PostgreSQL database"
+          DB_HOST=ecommerce-production-catalog-db-1 DB_PORT=5432 DB_NAME=ecommerce DB_USERNAME=ecommerce DB_PASSWORD=ecommerce mvn test -B -f services/catalog-service/pom.xml
+
+          echo "Testing Cart Service against its PostgreSQL database"
+          DB_HOST=ecommerce-production-cart-db-1 DB_PORT=5432 DB_NAME=ecommerce DB_USERNAME=ecommerce DB_PASSWORD=ecommerce mvn test -B -f services/cart-service/pom.xml
+
+          echo "Testing Order Service against its PostgreSQL database"
+          DB_HOST=ecommerce-production-order-db-1 DB_PORT=5432 DB_NAME=ecommerce DB_USERNAME=ecommerce DB_PASSWORD=ecommerce mvn test -B -f services/order-service/pom.xml
+        '''
       }
       post {
         always {
