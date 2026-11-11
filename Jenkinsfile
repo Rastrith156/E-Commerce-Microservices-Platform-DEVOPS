@@ -330,7 +330,7 @@ pipeline {
       steps {
         script {
           echo "Promoting images to GitOps repository"
-          # Update image tags in Kubernetes manifests and commit to GitOps repo
+          // Update image tags in Kubernetes manifests and commit to GitOps repo
           sh '''
             echo "GitOps promotion would update k8s manifests with image digests"
           '''
