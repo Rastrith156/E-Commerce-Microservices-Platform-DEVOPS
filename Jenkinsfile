@@ -61,19 +61,10 @@ pipeline {
       }
     }
 
-    stage('Dependency Installation') {
-      parallel {
-        stage('Backend Dependencies') {
-          steps {
-            sh 'mvn dependency:go-offline -B -q'
-          }
-        }
-        stage('Frontend Dependencies') {
-          steps {
-            dir('frontend') {
-              sh 'npm ci'
-            }
-          }
+    stage('Frontend Dependencies') {
+      steps {
+        dir('frontend') {
+          sh 'npm ci'
         }
       }
     }
