@@ -138,7 +138,59 @@ pipeline {
 
     stage('Backend Maven Tests') {
       steps {
-        sh 'mvn test -B -pl services/catalog-service,services/cart-service,services/order-service'
+        sh '''
+          set -eu
+          set +x
+
+          # Service module -> production PostgreSQL container mapping.
+          # Database credentials are read from each running container's
+          # environment at runtime: nothing is hardcoded, no shell tracing
+          # is enabled, and no secret is ever written to the build log.
+          services='
+services/catalog-service:ecommerce-production-catalog-db-1
+services/cart-service:ecommerce-production-cart-db-1
+services/order-service:ecommerce-production-order-db-1
+'
+
+          echo "$services" | while IFS=: read -r service container; do
+            [ -n "$service" ] || continue
+
+            echo "Validating database container '$container' for service '$service' ..."
+            if ! docker inspect --type=container "$container" >/dev/null 2>&1; then
+              echo "ERROR: database container '$container' required by '$service' does not exist" >&2
+              exit 1
+            fi
+            if [ "$(docker inspect --format='{{.State.Running}}' "$container")" != "true" ]; then
+              echo "ERROR: database container '$container' required by '$service' is not running" >&2
+              exit 1
+            fi
+
+            # Read a POSTGRES_* value from the container environment without printing it.
+            get_db_env() {
+              docker inspect --format='{{range .Config.Env}}{{println .}}{{end}}' "$1" \
+                | grep -E "^${2}=" \
+                | head -n 1 \
+                | cut -d= -f2-
+            }
+
+            DB_NAME="$(get_db_env "$container" POSTGRES_DB)"
+            DB_USERNAME="$(get_db_env "$container" POSTGRES_USER)"
+            DB_PASSWORD="$(get_db_env "$container" POSTGRES_PASSWORD)"
+
+            if [ -z "$DB_NAME" ] || [ -z "$DB_USERNAME" ] || [ -z "$DB_PASSWORD" ]; then
+              echo "ERROR: container '$container' is missing POSTGRES_DB, POSTGRES_USER, or POSTGRES_PASSWORD" >&2
+              exit 1
+            fi
+
+            echo "Running Maven tests for '$service' against database container '$container' (database='$DB_NAME', user='$DB_USERNAME')"
+            (
+              cd "$service"
+              DB_HOST="$container" DB_PORT=5432 \
+              DB_NAME="$DB_NAME" DB_USERNAME="$DB_USERNAME" DB_PASSWORD="$DB_PASSWORD" \
+              mvn test -B
+            )
+          done
+        '''
       }
       post {
         always {
