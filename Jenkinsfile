@@ -46,7 +46,6 @@ pipeline {
 
   options {
     timestamps()
-    ansiColor('xterm')
     disableResume()
     durabilityHint('PERFORMANCE_OPTIMIZED')
   }
