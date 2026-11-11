@@ -1,0 +1,54 @@
+[rules]
+  [[rules]]
+    id = "dockerfile-env"
+    description = "Detects hardcoded credentials in Dockerfile ENV instructions"
+    regex = '(?i)(ENV\\s+(PASSWORD|SECRET|KEY|TOKEN|CREDENTIAL)\\s*=)'
+    secretGroup = 1
+
+  [[rules]]
+    id = "generic-api-key"
+    description = "Detects generic API keys"
+    regex = '(?i)(api[_-]?key|apikey)\\s*[:=]\\s*[\\\'"]?([A-Za-z0-9_-]{20,})[\\\'"]?'
+    secretGroup = 2
+
+  [[rules]]
+    id = "paypal-client-secret"
+    description = "Detects PayPal client secrets"
+    regex = '(?i)(paypal[_-]?client[_-]?secret)\\s*[:=]\\s*[\\\'"]?([A-Za-z0-9_-]{20,})[\\\'"]?'
+    secretGroup = 2
+
+  [[rules]]
+    id = "private-key"
+    description = "Detects private keys"
+    regex = '-----BEGIN [A-Z ]*PRIVATE KEY-----'
+    secretGroup = 0
+
+  [[rules]]
+    id = "aws-access-key"
+    description = "Detects AWS access keys"
+    regex = 'AKIA[0-9A-Z]{16}'
+    secretGroup = 0
+
+  [[rules]]
+    id = "github-token"
+    description = "Detects GitHub tokens"
+    regex = '(ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{80,})'
+    secretGroup = 0
+
+  [[rules]]
+    id = "slack-token"
+    description = "Detects Slack tokens"
+    regex = '(xox[baprs]-[A-Za-z0-9-]+)'
+    secretGroup = 0
+
+[paths]
+  exclude = [
+    'node_modules/',
+    'target/',
+    'build/',
+    'dist/',
+    '.git/',
+    '*.lock',
+    '*.md',
+    'docs/',
+  ]

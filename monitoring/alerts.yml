@@ -1,0 +1,62 @@
+groups:
+  - name: ecommerce-alerts
+    rules:
+      - alert: CatalogServiceDown
+        expr: up{job="catalog-service"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Catalog service is down"
+          description: "Catalog service has been down for more than 1 minute."
+
+      - alert: CartServiceDown
+        expr: up{job="cart-service"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Cart service is down"
+          description: "Cart service has been down for more than 1 minute."
+
+      - alert: OrderServiceDown
+        expr: up{job="order-service"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Order service is down"
+          description: "Order service has been down for more than 1 minute."
+
+      - alert: HighErrorRate
+        expr: >
+          sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m]))
+          /
+          sum(rate(http_server_requests_seconds_count[5m])) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is above 5% for the last 2 minutes."
+
+      - alert: HighResponseTime
+        expr: >
+          histogram_quantile(0.95,
+            sum(rate(http_server_requests_seconds_bucket[5m])) by (le)
+          ) > 1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High response time"
+          description: "95th percentile response time is above 1 second."
+
+      - alert: PostgresDown
+        expr: up{job="kubernetes-pods",app="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL is down"
+          description: "PostgreSQL database is not responding."

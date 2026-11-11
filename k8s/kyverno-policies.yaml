@@ -1,0 +1,74 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-non-root-containers
+spec:
+  validationFailureAction: audit
+  background: true
+  rules:
+    - name: require-non-root
+      match:
+        resources:
+          kinds:
+            - Pod
+      validate:
+        message: "Containers must run as non-root"
+        pattern:
+          spec:
+            securityContext:
+              runAsNonRoot: true
+            containers:
+              - name: "*"
+                securityContext:
+                  runAsNonRoot: true
+                  allowPrivilegeEscalation: false
+
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-resource-limits
+spec:
+  validationFailureAction: audit
+  background: true
+  rules:
+    - name: require-resource-limits
+      match:
+        resources:
+          kinds:
+            - Pod
+      validate:
+        message: "Containers must specify resource requests and limits"
+        pattern:
+          spec:
+            containers:
+              - name: "*"
+                resources:
+                  requests:
+                    memory: "?*"
+                    cpu: "?*"
+                  limits:
+                    memory: "?*"
+                    cpu: "?*"
+
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: restrict-image-registry
+spec:
+  validationFailureAction: audit
+  background: true
+  rules:
+    - name: restrict-image-registry
+      match:
+        resources:
+          kinds:
+            - Pod
+      validate:
+        message: "Container images must come from approved registries"
+        pattern:
+          spec:
+            containers:
+              - name: "*"
+                image: "rastrith/*"
