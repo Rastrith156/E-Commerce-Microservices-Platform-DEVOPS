@@ -6,7 +6,6 @@ import in.rastrith.ecommerce.order.dto.OrderResponse;
 import in.rastrith.ecommerce.order.model.Order;
 import in.rastrith.ecommerce.order.model.OrderStatus;
 import in.rastrith.ecommerce.order.repository.OrderRepository;
-import in.rastrith.ecommerce.order.repository.OrderItemRepository;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
@@ -17,6 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -25,9 +25,6 @@ class OrderServiceTest {
 
   @Mock
   private OrderRepository orderRepository;
-
-  @Mock
-  private OrderItemRepository orderItemRepository;
 
   @InjectMocks
   private OrderService orderService;
@@ -40,16 +37,13 @@ class OrderServiceTest {
         List.of(new OrderItemRequest("product-1", 2, new BigDecimal("99.99")))
     );
 
-    Order saved = new Order();
-    saved.setId(1L);
-    saved.setOrderNumber("ORD-ABCD1234");
-    saved.setUserId("user-1");
-    saved.setIdempotencyKey("idempotency-key-1");
-    saved.setTotal(new BigDecimal("199.98"));
-    saved.setStatus(OrderStatus.PENDING);
-
     when(orderRepository.findByIdempotencyKey("idempotency-key-1")).thenReturn(Optional.empty());
-    when(orderRepository.save(org.mockito.ArgumentMatchers.any(Order.class))).thenReturn(saved);
+    when(orderRepository.save(org.mockito.ArgumentMatchers.any(Order.class))).thenAnswer(invocation -> {
+      Order order = invocation.getArgument(0);
+      order.setId(1L);
+      order.setOrderNumber("ORD-ABCD1234");
+      return order;
+    });
 
     OrderResponse response = orderService.createOrder(request);
 
@@ -86,7 +80,7 @@ class OrderServiceTest {
     assertThat(response.status()).isEqualTo(OrderStatus.CONFIRMED);
     verify(orderRepository).findByIdempotencyKey("idempotency-key-1");
     // Should NOT save again
-    verify(orderRepository, org.mockito.Mockito.never()).save(org.mockito.ArgumentMatchers.any(Order.class));
+    verify(orderRepository, never()).save(org.mockito.ArgumentMatchers.any(Order.class));
   }
 
   @Test

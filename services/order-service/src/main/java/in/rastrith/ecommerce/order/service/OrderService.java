@@ -1,14 +1,12 @@
 package in.rastrith.ecommerce.order.service;
 
 import in.rastrith.ecommerce.order.dto.CreateOrderRequest;
-import in.rastrith.ecommerce.order.dto.OrderItemRequest;
 import in.rastrith.ecommerce.order.dto.OrderResponse;
 import in.rastrith.ecommerce.order.dto.OrderItemResponse;
 import in.rastrith.ecommerce.order.model.Order;
 import in.rastrith.ecommerce.order.model.OrderItem;
 import in.rastrith.ecommerce.order.model.OrderStatus;
 import in.rastrith.ecommerce.order.repository.OrderRepository;
-import in.rastrith.ecommerce.order.repository.OrderItemRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -21,11 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class OrderService {
 
   private final OrderRepository orderRepository;
-  private final OrderItemRepository orderItemRepository;
 
-  public OrderService(OrderRepository orderRepository, OrderItemRepository orderItemRepository) {
+  public OrderService(OrderRepository orderRepository) {
     this.orderRepository = orderRepository;
-    this.orderItemRepository = orderItemRepository;
   }
 
   public Optional<OrderResponse> getOrder(Long orderId) {
@@ -44,16 +40,18 @@ public class OrderService {
     order.setUserId(request.userId());
     order.setIdempotencyKey(request.idempotencyKey());
 
-    BigDecimal total = BigDecimal.ZERO;
     List<OrderItem> orderItems = request.items().stream().map(itemRequest -> {
       OrderItem item = new OrderItem();
       item.setOrder(order);
       item.setProductId(itemRequest.productId());
       item.setQuantity(itemRequest.quantity());
       item.setUnitPrice(itemRequest.unitPrice());
-      total = total.add(itemRequest.unitPrice().multiply(BigDecimal.valueOf(itemRequest.quantity())));
       return item;
     }).toList();
+
+    BigDecimal total = orderItems.stream()
+        .map(item -> item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
 
     order.setItems(orderItems);
     order.setTotal(total);

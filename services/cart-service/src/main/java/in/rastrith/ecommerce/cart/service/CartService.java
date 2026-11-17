@@ -3,12 +3,12 @@ package in.rastrith.ecommerce.cart.service;
 import in.rastrith.ecommerce.cart.dto.AddToCartRequest;
 import in.rastrith.ecommerce.cart.dto.CartResponse;
 import in.rastrith.ecommerce.cart.dto.CartItemResponse;
-import in.rastrith.ecommerce.cart.dto.UpdateCartItemRequest;
 import in.rastrith.ecommerce.cart.model.Cart;
 import in.rastrith.ecommerce.cart.model.CartItem;
 import in.rastrith.ecommerce.cart.repository.CartRepository;
 import in.rastrith.ecommerce.cart.repository.CartItemRepository;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -61,19 +61,23 @@ public class CartService {
   @Transactional
   public Optional<CartResponse> updateItem(String userId, String productId, Integer quantity) {
     return cartRepository.findByUserId(userId)
-        .flatMap(cart -> cart.getItems().stream()
-            .filter(item -> item.getProductId().equals(productId))
-            .findFirst())
-        .map(item -> {
+        .flatMap(cart -> {
+          Optional<CartItem> item = cart.getItems().stream()
+              .filter(i -> i.getProductId().equals(productId))
+              .findFirst();
+          if (item.isEmpty()) {
+            return Optional.empty();
+          }
+          CartItem cartItem = item.get();
           if (quantity <= 0) {
-            cart.getItems().remove(item);
-            cartItemRepository.delete(item);
+            cart.getItems().remove(cartItem);
+            cartItemRepository.delete(cartItem);
           } else {
-            item.setQuantity(quantity);
+            cartItem.setQuantity(quantity);
           }
           cart.setUpdatedAt(Instant.now());
           cartRepository.save(cart);
-          return toResponse(cart);
+          return Optional.of(toResponse(cart));
         });
   }
 
