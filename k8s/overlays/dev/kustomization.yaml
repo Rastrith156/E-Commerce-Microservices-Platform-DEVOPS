@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+images:
+  - name: rastrith/catalog-service
+    newTag: dev
+  - name: rastrith/catalog-service
+    newTag: dev
+  - name: rastrith/cart-service
+    newTag: dev
+  - name: rastrith/order-service
+    newTag: dev
+  - name: rastrith/frontend
+    newTag: dev
+replicas:
+  - name: catalog-service
+    count: 1
+  - name: cart-service
+    count: 1
+  - name: order-service
+    count: 1
+  - name: frontend
+    count: 1

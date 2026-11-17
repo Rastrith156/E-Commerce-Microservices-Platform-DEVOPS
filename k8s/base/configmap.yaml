@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ecommerce-config
+  namespace: ecommerce
+data:
+  DB_HOST: "postgres"
+  DB_PORT: "5432"
+  DB_NAME: "ecommerce"
+  DB_USERNAME: "ecommerce"
+  CATALOG_SERVICE_PORT: "8081"
+  CART_SERVICE_PORT: "8082"
+  ORDER_SERVICE_PORT: "8083"
+  PAYPAL_API_BASE_URL: "https://api-m.sandbox.paypal.com"

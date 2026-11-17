@@ -1,0 +1,10 @@
+# Copy this file to terraform.tfvars and fill in your values
+# Never commit terraform.tfvars with real values
+
+project_id = "your-gcp-project-id"
+region     = "asia-south1"
+zone       = "asia-south1-a"
+
+# PayPal sandbox credentials
+paypal_client_id = "your-paypal-sandbox-client-id"
+paypal_client_secret = "your-paypal-sandbox-client-secret"

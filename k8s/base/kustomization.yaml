@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secret.yaml
+  - postgres/deployment.yaml
+  - catalog-service/deployment.yaml
+  - cart-service/deployment.yaml
+  - order-service/deployment.yaml
+  - frontend/deployment.yaml
+  - network-policy.yaml
+  - hpa.yaml
+images:
+  - name: rastrith/catalog-service
+    newName: rastrith/catalog-service
+    newTag: 1.0.0
+  - name: rastrith/cart-service
+    newName: rastrith/cart-service
+    newTag: 1.0.0
+  - name: rastrith/order-service
+    newName: rastrith/order-service
+    newTag: 1.0.0
+  - name: rastrith/frontend
+    newName: rastrith/frontend
+    newTag: 1.0.0
