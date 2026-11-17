@@ -167,7 +167,7 @@ The `Jenkinsfile` defines a declarative pipeline with all required stages:
 
 ### GitHub Actions
 - `.github/workflows/pr.yml` - Pull request validation
-- `.github/workflows/ci.yml` - Branch CI (develop, main)
+- `.github/workflows/ci.yml` - CI for pushes to `main`
 - `.github/workflows/release.yml` - Release workflow (tags)
 
 ## Kubernetes

@@ -2,12 +2,27 @@ name: Branch CI
 
 on:
   push:
-    branches: [develop, main]
+    branches: [main]
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
     timeout-minutes: 90
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: ecommerce
+          POSTGRES_USER: ecommerce
+          POSTGRES_PASSWORD: ecommerce
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ecommerce -d ecommerce"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
       - name: Checkout
@@ -50,6 +65,12 @@ jobs:
         run: npm run build
 
       - name: Backend Maven Tests
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: ecommerce
+          DB_USERNAME: ecommerce
+          DB_PASSWORD: ecommerce
         run: mvn test -B -pl services/catalog-service,services/cart-service,services/order-service
 
       - name: Trivy Filesystem Scan
