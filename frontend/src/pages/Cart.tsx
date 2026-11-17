@@ -1,15 +1,30 @@
 import { useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useCart } from '../hooks/useCart';
+import { useProducts } from '../hooks/useProducts';
 import { Navbar } from '../components/Navbar';
 import { ErrorDisplay } from '../components/ErrorDisplay';
-
-const DEMO_USER_ID = 'demo-user';
+import { DEMO_USER_ID } from '../constants';
+import { formatCurrency } from '../utils/formatCurrency';
 
 export function CartPage() {
   const { cart, loading, error, itemCount, refresh, updateItem, removeItem, clearCart } = useCart();
+  const {
+    products,
+    loading: productsLoading,
+    error: productsError,
+    refresh: refreshProducts,
+  } = useProducts(1, 100);
+  const productsById = new Map(products.map((product) => [product.id, product]));
+  const subtotal = cart?.items.reduce((sum, item) => {
+    const product = productsById.get(item.productId);
+    return sum + (product?.price ?? 0) * item.quantity;
+  }, 0) ?? 0;
+  const hasMissingProduct = cart?.items.some((item) => !productsById.has(item.productId)) ?? false;
 
   const handleUpdate = async (productId: string, event: React.ChangeEvent<HTMLInputElement>) => {
-    const quantity = Math.max(0, parseInt(event.target.value, 10) || 0);
+    const quantity = Number(event.target.value);
+    if (!Number.isInteger(quantity) || quantity < 0) return;
     await updateItem(DEMO_USER_ID, productId, quantity);
   };
 
@@ -32,35 +47,77 @@ export function CartPage() {
       <Navbar cartCount={itemCount} />
       <main className="container">
         <h1>Shopping Cart</h1>
-        <ErrorDisplay error={error} />
-        {loading && <p>Loading cart...</p>}
-        {!loading && !cart && (
-          <button type="button" onClick={() => refresh(DEMO_USER_ID)}>Load cart</button>
-        )}
-        {!loading && cart && cart.items.length === 0 && (
-          <p>Your cart is empty.</p>
+        <ErrorDisplay error={error} onRetry={() => { void refresh(DEMO_USER_ID); }} />
+        <ErrorDisplay error={productsError} onRetry={() => { void refreshProducts(); }} />
+        {loading && <p className="loading" role="status">Loading cart...</p>}
+        {!loading && (!cart || cart.items.length === 0) && (
+          <div className="empty-state">
+            <h2>Your cart is empty</h2>
+            <p>Browse the catalog and add something you like.</p>
+            <Link className="btn-primary" to="/">Browse products</Link>
+          </div>
         )}
         {!loading && cart && cart.items.length > 0 && (
           <>
             <ul className="cart-items">
-              {cart.items.map((item) => (
-                <li key={item.productId} className="cart-item">
-                  <span>Product {item.productId}</span>
-                  <input
-                    type="number"
-                    min="0"
-                    value={item.quantity}
-                    onChange={(e) => handleUpdate(item.productId, e)}
-                  />
-                  <button type="button" onClick={() => handleRemove(item.productId)}>
-                    Remove
-                  </button>
-                </li>
-              ))}
+              {cart.items.map((item) => {
+                const product = productsById.get(item.productId);
+                return (
+                  <li key={item.productId} className="cart-item">
+                    <div className="cart-item-info">
+                      <span className="cart-item-name">
+                        {product?.name ?? `Product ${item.productId}`}
+                      </span>
+                      {product && (
+                        <span className="text-muted">
+                          {formatCurrency(product.price, product.currency)} each
+                        </span>
+                      )}
+                    </div>
+                    <input
+                      className="cart-item-qty"
+                      type="number"
+                      min="0"
+                      value={item.quantity}
+                      aria-label={`Quantity for ${product?.name ?? `product ${item.productId}`}`}
+                      onChange={(e) => handleUpdate(item.productId, e)}
+                    />
+                    <span className="cart-item-line-total">
+                      {product
+                        ? formatCurrency(product.price * item.quantity, product.currency)
+                        : 'Price unavailable'}
+                    </span>
+                    <button
+                      className="btn-remove"
+                      type="button"
+                      onClick={() => handleRemove(item.productId)}
+                    >
+                      Remove
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
+            <div className="cart-summary">
+              <span>Items ({itemCount})</span>
+              <strong>
+                {productsLoading || hasMissingProduct
+                  ? 'Subtotal unavailable'
+                  : formatCurrency(subtotal)}
+              </strong>
+            </div>
             <div className="cart-actions">
-              <button type="button" onClick={handleClear}>Clear cart</button>
-              <button type="button">Proceed to checkout</button>
+              <button className="btn-clear" type="button" onClick={handleClear}>Clear cart</button>
+              <Link
+                className="btn-checkout"
+                to="/checkout"
+                aria-disabled={productsLoading || hasMissingProduct}
+                onClick={(event) => {
+                  if (productsLoading || hasMissingProduct) event.preventDefault();
+                }}
+              >
+                Proceed to checkout
+              </Link>
             </div>
           </>
         )}

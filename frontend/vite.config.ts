@@ -6,8 +6,16 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': {
-        target: 'http://localhost:8080',
+      '/api/catalog': {
+        target: 'http://localhost:8081',
+        changeOrigin: true,
+      },
+      '/api/cart': {
+        target: 'http://localhost:8082',
+        changeOrigin: true,
+      },
+      '/api/orders': {
+        target: 'http://localhost:8083',
         changeOrigin: true,
       },
     },

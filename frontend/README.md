@@ -44,7 +44,10 @@ npm run preview
 |---|---|---|
 | `VITE_API_BASE_URL` | Base URL for backend API | `/api` |
 
-The development Vite server proxies `/api` requests to `http://localhost:8080`.
+The development Vite server proxies catalog requests to `http://localhost:8081`,
+cart requests to `http://localhost:8082`, and order requests to
+`http://localhost:8083`. Start the corresponding backend services before using
+the frontend dev server.
 
 ## Project structure
 

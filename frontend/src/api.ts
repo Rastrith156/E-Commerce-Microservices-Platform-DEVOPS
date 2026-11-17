@@ -11,6 +11,15 @@ import { getStoredCorrelationId } from './utils/correlationId';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
 
+type ProductApiResponse = Omit<Product, 'id'> & { id: number | string };
+type ProductPageApiResponse = Omit<PaginatedResponse<ProductApiResponse>, 'content'> & {
+  content: ProductApiResponse[];
+};
+
+function normalizeProduct(product: ProductApiResponse): Product {
+  return { ...product, id: String(product.id) };
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -40,12 +49,18 @@ class ApiClient {
         message: `Request failed with status ${response.status}`,
         correlationId,
         timestamp: new Date().toISOString(),
+        status: response.status,
       };
       try {
-        error = (await response.json()) as ApiError;
-        error.correlationId = error.correlationId ?? correlationId;
+        const responseError = (await response.json()) as Partial<ApiError>;
+        error = {
+          ...error,
+          ...responseError,
+          correlationId: responseError.correlationId ?? correlationId,
+          status: response.status,
+        };
       } catch {
-        // Use default error if body is not JSON
+        // Keep the HTTP status message when the response body is not JSON.
       }
       throw error;
     }
@@ -59,14 +74,21 @@ class ApiClient {
 
   async getProducts(params?: { page?: number; size?: number }): Promise<PaginatedResponse<Product>> {
     const search = new URLSearchParams();
-    if (params?.page) search.set('page', String(params.page));
+    if (params?.page !== undefined) search.set('page', String(params.page));
     if (params?.size) search.set('size', String(params.size));
     const query = search.toString() ? `?${search}` : '';
-    return this.request<PaginatedResponse<Product>>(`/catalog/products${query}`);
+    const response = await this.request<ProductPageApiResponse>(`/catalog/products${query}`);
+    return {
+      ...response,
+      content: response.content.map(normalizeProduct),
+    };
   }
 
   async getProduct(id: string): Promise<Product> {
-    return this.request<Product>(`/catalog/products/${encodeURIComponent(id)}`);
+    const product = await this.request<ProductApiResponse>(
+      `/catalog/products/${encodeURIComponent(id)}`
+    );
+    return normalizeProduct(product);
   }
 
   async getCart(userId: string): Promise<Cart> {
