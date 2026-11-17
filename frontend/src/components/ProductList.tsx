@@ -1,11 +1,14 @@
 import type { Product } from '../types';
 import { ProductCard } from './ProductCard';
+import { ErrorDisplay } from './ErrorDisplay';
 
 interface ProductListProps {
   products: Product[];
   loading: boolean;
   error: string | null;
   onAddToCart: (product: Product) => void;
+  addingProductId?: string | null;
+  cartLoading?: boolean;
   onRefresh: () => void;
 }
 
@@ -14,6 +17,8 @@ export function ProductList({
   loading,
   error,
   onAddToCart,
+  addingProductId = null,
+  cartLoading = false,
   onRefresh,
 }: ProductListProps) {
   if (loading) {
@@ -25,29 +30,27 @@ export function ProductList({
   }
 
   if (error) {
-    return (
-      <div className="error">
-        <p>{error}</p>
-        <button type="button" onClick={onRefresh}>Try again</button>
-      </div>
-    );
+    return <ErrorDisplay error={error} onRetry={onRefresh} />;
   }
 
   if (products.length === 0) {
     return (
-      <div className="empty">
-        <p>No products found.</p>
+      <div className="empty-state">
+        <h2>No products available</h2>
+        <p>No products were found in the catalog.</p>
       </div>
     );
   }
 
   return (
-    <section className="product-list" aria-label="Product catalog">
+    <section className="product-grid" aria-label="Product catalog">
       {products.map((product) => (
         <ProductCard
           key={product.id}
           product={product}
           onAddToCart={onAddToCart}
+          isAdding={addingProductId === product.id}
+          cartLoading={cartLoading}
         />
       ))}
     </section>

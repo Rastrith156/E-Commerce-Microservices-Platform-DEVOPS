@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { CartPage } from '../pages/Cart';
@@ -6,14 +6,34 @@ import { CartPage } from '../pages/Cart';
 vi.mock('../hooks/useCart', () => ({
   useCart: vi.fn(),
 }));
+vi.mock('../hooks/useProducts', () => ({
+  useProducts: vi.fn(),
+}));
 
 import { useCart } from '../hooks/useCart';
+import { useProducts } from '../hooks/useProducts';
 
 const mockUseCart = useCart as ReturnType<typeof vi.fn>;
+const mockUseProducts = useProducts as ReturnType<typeof vi.fn>;
 
 function renderCart() {
   return render(<CartPage />, { wrapper: MemoryRouter });
 }
+
+beforeEach(() => {
+  mockUseProducts.mockReturnValue({
+    products: [],
+    loading: false,
+    error: null,
+    totalPages: 0,
+    totalElements: 0,
+    page: 1,
+    size: 100,
+    refresh: vi.fn(),
+    setPage: vi.fn(),
+    setSize: vi.fn(),
+  });
+});
 
 describe('CartPage', () => {
   it('renders empty cart message when no items', () => {
@@ -31,7 +51,7 @@ describe('CartPage', () => {
     });
 
     renderCart();
-    expect(screen.getByText(/your cart is empty/i)).toBeTruthy();
+    expect(screen.getByRole('heading', { name: /your cart is empty/i })).toBeTruthy();
   });
 
   it('renders cart items and allows removal', () => {

@@ -38,7 +38,31 @@ describe('api client', () => {
     await expect(api.getProduct('missing')).rejects.toMatchObject({
       code: 'NOT_FOUND',
       message: 'Product not found',
+      status: 404,
     });
+  });
+
+  it('normalizes numeric product IDs to strings', async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse({
+      content: [{
+        id: 1,
+        name: 'Widget',
+        description: 'A widget',
+        price: 100,
+        currency: 'INR',
+        stock: 5,
+        createdAt: '',
+        updatedAt: '',
+      }],
+      totalElements: 1,
+      totalPages: 1,
+      page: 0,
+      size: 12,
+    }));
+
+    const response = await api.getProducts();
+
+    expect(response.content[0].id).toBe('1');
   });
 
   it('generates a stable correlation ID within a session', async () => {

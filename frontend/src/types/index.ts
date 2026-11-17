@@ -28,7 +28,8 @@ export interface OrderItem {
 }
 
 export interface Order {
-  id: string;
+  id: number;
+  orderNumber?: string;
   userId: string;
   items: OrderItem[];
   total: number;
@@ -42,12 +43,13 @@ export interface Order {
 export interface CreateOrderRequest {
   userId: string;
   idempotencyKey: string;
-  items: CartItem[];
+  items: OrderItem[];
 }
 
 export interface ApiError {
   code: string;
   message: string;
+  status?: number;
   correlationId?: string;
   timestamp: string;
   details?: Record<string, string>;
