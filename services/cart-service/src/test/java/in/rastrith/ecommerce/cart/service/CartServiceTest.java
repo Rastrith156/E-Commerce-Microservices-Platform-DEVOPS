@@ -3,7 +3,6 @@ package in.rastrith.ecommerce.cart.service;
 import in.rastrith.ecommerce.cart.dto.AddToCartRequest;
 import in.rastrith.ecommerce.cart.dto.CartResponse;
 import in.rastrith.ecommerce.cart.model.Cart;
-import in.rastrith.ecommerce.cart.model.CartItem;
 import in.rastrith.ecommerce.cart.repository.CartRepository;
 import in.rastrith.ecommerce.cart.repository.CartItemRepository;
 import java.util.Optional;
@@ -14,6 +13,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -47,7 +47,7 @@ class CartServiceTest {
     assertThat(response.items()).hasSize(1);
     assertThat(response.items().get(0).productId()).isEqualTo("product-1");
     assertThat(response.items().get(0).quantity()).isEqualTo(2);
-    verify(cartRepository).save(org.mockito.ArgumentMatchers.any(Cart.class));
+    verify(cartRepository, times(2)).save(org.mockito.ArgumentMatchers.any(Cart.class));
   }
 
   @Test

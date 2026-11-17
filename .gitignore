@@ -4,6 +4,9 @@ dist/
 build/
 coverage/
 
+# Java/Maven build output
+**/target/
+
 # Local environment files (keep documented examples)
 .env
 .env.*

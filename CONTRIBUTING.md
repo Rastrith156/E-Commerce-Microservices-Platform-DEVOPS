@@ -2,17 +2,14 @@
 
 Thank you for contributing to the E-Commerce Microservices Platform. These rules keep changes reviewable, traceable, and safe.
 
-## Branch naming
+## Branching
 
-Create work from the correct base branch and use lowercase kebab-case descriptions.
+`main` is the only long-lived branch and the source of truth. Create short-lived
+work branches from the latest `main`, using lowercase kebab-case names such as
+`feature/catalog-api` or `fix/order-total`. Open pull requests targeting
+`main`, and delete work branches after they are merged.
 
-| Branch | Base | Purpose | Example |
-|---|---|---|---|
-| `feature/*` | `develop` | New functionality | `feature/catalog-api` |
-| `release/*` | `develop` | Release stabilization | `release/1.0.0` |
-| `hotfix/*` | `main` | Urgent production correction | `hotfix/order-total` |
-
-Do not commit feature work directly to `main` or `develop`.
+Do not commit feature work directly to `main`.
 
 ## Commit messages
 
@@ -34,7 +31,7 @@ Common types include `feat`, `fix`, `docs`, `test`, `refactor`, `chore`, and `bu
 
 Every Pull Request should:
 
-- target the correct branch (`develop` for features; follow the documented release/hotfix flow);
+- target `main`;
 - have a clear title and completed PR template;
 - explain the change, motivation, affected services, and tests performed;
 - link a related issue when available;
@@ -69,6 +66,6 @@ Every Pull Request should:
 - Do not bypass branch protection or force-push protected branches.
 - Prefer a clean history using the merge method configured by the repository owner.
 - Delete merged feature branches.
-- `main` receives production-ready changes through reviewed release or hotfix Pull Requests.
+- `main` is the only long-lived branch and receives changes through reviewed Pull Requests.
 
 See [`docs/git-workflow.md`](docs/git-workflow.md) for step-by-step commands.
